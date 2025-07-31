@@ -10,7 +10,7 @@ print("DEBUG: plotly version:", plotly.__version__)
 print("DEBUG: dash version:", dash.__version__)
 
 # Load pivoted data for oscilloscope-style animation
-with open("pivoted_wave_data.pkl", "rb") as f:
+with open("data/pivotdata/restructured_data.pkl", "rb") as f:
     pivoted = pickle.load(f)
 df_pivot = pivoted['df_pivot']  # index: t, columns: station, values: delta
 station_order = pivoted['station_order']
@@ -209,23 +209,215 @@ station_timeseries_fig.update_layout(
     margin=dict(t=40, b=40, l=60, r=20)
 )
 
+# --- Animated Overview Map Construction ---
+# Load station lat/lon from station metadata
+with open("data/station_metadata.json", "r") as f:
+    station_meta = pd.read_json(f).T
+
+# Build display name -> id mapping
+from wave_data_collect_and_cache import stations
+# Map display name in station_order to station_id for metadata lookup
+station_ids = []
+for name in station_order:
+    # Try direct lookup in stations dict
+    if name in stations:
+        station_ids.append(stations[name]['id'])
+    else:
+        # Fallback: try to match by canonical name in metadata
+        found = False
+        for sid, meta in station_meta.iterrows():
+            if meta['name'] == name:
+                station_ids.append(sid)
+                found = True
+                break
+        if not found:
+            raise KeyError(f"Cannot map station display name '{name}' to station ID for metadata lookup. Check station_order and metadata consistency.")
+station_lats = [station_meta.loc[int(sid), 'lat'] for sid in station_ids]
+station_lons = [station_meta.loc[int(sid), 'lng'] for sid in station_ids]
+
+# Prepare initial map frame
+map_marker_sizes = [max(8, min(30, abs(y0[i])*15)) for i in range(len(y0))]  # scale delta for size
+map_marker_colors = y0  # use delta directly for color
+
+map_fig = go.Figure()
+map_fig.add_trace(go.Scattergeo(
+    lon=station_lons,
+    lat=station_lats,
+    text=station_order,
+    marker=dict(
+        size=map_marker_sizes,
+        color=map_marker_colors,
+        colorscale='RdBu',
+        cmin=y_range[0],
+        cmax=y_range[1],
+        colorbar=dict(title="Δ Wave Height (m)", len=0.5, y=0.7),
+        line=dict(width=1, color='black')
+    ),
+    mode='markers+text',
+    textposition="top center",
+    name='Stations',
+    showlegend=False
+))
+map_fig.update_geos(
+    projection_type="natural earth",
+    showcountries=True, showcoastlines=True, showland=True, fitbounds="locations"
+)
+map_fig.update_layout(
+    title="Station Overview Map (Animated)",
+    margin=dict(l=0, r=0, t=40, b=0),
+    height=350
+)
+
+# Animation frames for map
+map_frames = []
+for i, t in enumerate(all_frames):
+    frame_y = df_pivot_interp.iloc[i].values.tolist()
+    sizes = [max(8, min(30, abs(val)*15)) for val in frame_y]
+    colors = frame_y
+    map_frames.append(go.Frame(
+        data=[go.Scattergeo(
+            lon=station_lons,
+            lat=station_lats,
+            marker=dict(
+                size=sizes,
+                color=colors,
+                colorscale='RdBu',
+                cmin=y_range[0],
+                cmax=y_range[1],
+                line=dict(width=1, color='black')
+            ),
+            text=station_order,
+            mode='markers+text',
+            textposition="top center",
+            showlegend=False
+        )],
+        name=str(t)
+    ))
+map_fig.frames = map_frames
+map_fig.update_layout(
+    updatemenus=[{
+        "type": "buttons",
+        "buttons": [{
+            "label": "Play",
+            "method": "animate",
+            "args": [None, {"frame": {"duration": 50, "redraw": True}, "fromcurrent": True}]
+        }, {
+            "label": "Pause",
+            "method": "animate",
+            "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate", "transition": {"duration": 0}}]
+        }]
+    }],
+    sliders=[{
+        "steps": [
+            {"args": [[str(t)], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate"}], "label": str(t), "method": "animate"}
+            for t in all_frames
+        ],
+        "transition": {"duration": 0},
+        "x": 0.1,
+        "len": 0.9,
+        "xanchor": "left",
+        "y": 0,
+        "yanchor": "top"
+    }]
+)
+
+# --- Dash Layout with Map ---
+from dash.dependencies import Input, Output
+
+from dash.dependencies import Input, Output, State
+
+# Remove per-figure animation controls from map_fig and fig
+map_fig.update_layout(updatemenus=[], sliders=[])
+fig.update_layout(updatemenus=[], sliders=[])
+
 app.layout = html.Div([
     html.H1("Tsunami Wave Propagation: Oscilloscope Animation"),
-    dcc.Graph(id="wave-graph", figure=fig),
-    # html.H3("Recent Data (last 10 time steps)"),
-    # dash_table.DataTable(
-    #     id="pivoted-data-table",
-    #     columns=[{"name": col, "id": col} for col in preview_df_reset.columns],
-    #     data=preview_df_reset.to_dict("records"),
-    #     page_size=preview_rows,
-    #     style_table={"overflowX": "auto", "maxHeight": "400px", "overflowY": "auto"},
-    #     style_cell={"fontSize": 12, "textAlign": "center", "minWidth": "80px", "maxWidth": "120px"},
-    #     style_header={"backgroundColor": "#eee", "fontWeight": "bold"},
-    # ),
+    html.Div([
+        html.Button('Play', id='play-btn', n_clicks=0, style={'marginRight': '10px'}),
+        html.Button('Pause', id='pause-btn', n_clicks=0, style={'marginRight': '20px'}),
+        dcc.Slider(
+            id="frame-slider",
+            min=0,
+            max=len(all_frames)-1,
+            value=0,
+            marks={i: str(all_frames[i])[:16] for i in range(0, len(all_frames), max(1, len(all_frames)//10))},
+            step=1,
+            updatemode='drag'
+        ),
+    ], style={"marginBottom": "20px"}),
+    dcc.Graph(id="overview-map"),
+    dcc.Graph(id="wave-graph"),
     html.H3("Time Series: Wave Height at Each Station"),
-    dcc.Graph(id="timeseries-graph", figure=station_timeseries_fig),
-    dcc.Interval(id="interval", interval=1000, n_intervals=0)
+    dcc.Graph(id="timeseries-graph"),
+    dcc.Interval(id="interval", interval=100, n_intervals=0, disabled=True)
 ])
+
+@app.callback(
+    Output("interval", "disabled"),
+    [Input("play-btn", "n_clicks"), Input("pause-btn", "n_clicks")],
+    [State("interval", "disabled")]
+)
+def toggle_play_pause(play_clicks, pause_clicks, interval_disabled):
+    # Play enables interval, pause disables it
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return True
+    btn_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if btn_id == 'play-btn':
+        return False
+    elif btn_id == 'pause-btn':
+        return True
+    return interval_disabled
+
+@app.callback(
+    Output("frame-slider", "value"),
+    [Input("interval", "n_intervals")],
+    [State("frame-slider", "value")]
+)
+def advance_frame(n_intervals, slider_val):
+    if slider_val is None:
+        return 0
+    next_val = slider_val + 1
+    if next_val >= len(all_frames):
+        return 0  # loop back to start
+    return next_val
+
+@app.callback(
+    [Output("overview-map", "figure"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
+    [Input("frame-slider", "value")]
+)
+def update_all_figures(frame_idx):
+    t = all_frames[frame_idx]
+    # --- Update overview map ---
+    frame_y = df_pivot_interp.loc[t].values.tolist()
+    sizes = [max(8, min(30, abs(val)*15)) for val in frame_y]
+    colors = frame_y
+    map_fig_c = map_fig.to_dict()
+    map_fig_c['data'][0]['marker']['size'] = sizes
+    map_fig_c['data'][0]['marker']['color'] = colors
+    # --- Update oscilloscope ---
+    x = [float(d) for d in distances]
+    y = [float(v) for v in frame_y]
+    fig_c = fig.to_dict()
+    fig_c['data'][0]['x'] = x
+    fig_c['data'][0]['y'] = y
+    # --- Update time series with vertical line ---
+    fig_ts = station_timeseries_fig.to_dict()
+    shapes = []
+    for i in range(len(station_order)):
+        shapes.append({
+            "type": "line",
+            "xref": f"x{i+1}",
+            "yref": f"y{i+1}",
+            "x0": t,
+            "x1": t,
+            "y0": y_range[0],
+            "y1": y_range[1],
+            "line": {"color": "blue", "width": 2, "dash": "dot"},
+            "layer": "above"
+        })
+    fig_ts["layout"]["shapes"] = shapes
+    return map_fig_c, fig_c, fig_ts
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -68,58 +68,58 @@ def fetch_data(station_id, product):
         logging.error(f"Failed to fetch {product} for {station_id}: {e}")
         return pd.DataFrame()
 
-raw_cache_file = "raw_api_cache.pkl"
-restructured_cache_file = "restructured_data.pkl"
-raw_data = {}
-
-# Always fetch fresh data and overwrite cache
-logging.info("Fetching fresh data from NOAA API (date=recent)...")
-for name, meta in stations.items():
-    raw_data[name] = {}
-    for product in ["one_minute_water_level", "predictions"]:
-        raw_data[name][product] = fetch_data(meta["id"], product)
-with open(raw_cache_file, "wb") as f:
-    pickle.dump(raw_data, f)
-logging.info(f"Raw API data cached to {raw_cache_file}")
-
-logging.info("Processing and restructuring data...")
-records = []
-for name, meta in stations.items():
-    try:
-        obs = raw_data.get(name, {}).get("one_minute_water_level", pd.DataFrame())
-        pred = raw_data.get(name, {}).get("predictions", pd.DataFrame())
-        if not obs.empty and not pred.empty:
-            obs['t'] = pd.to_datetime(obs['t'], errors='coerce')
-            obs['v'] = pd.to_numeric(obs['v'], errors='coerce')
-            pred['t'] = pd.to_datetime(pred['t'], errors='coerce')
-            pred['v'] = pd.to_numeric(pred['v'], errors='coerce')
-            merged = pd.merge(obs, pred, on='t', suffixes=('_obs', '_pred'))
-            merged['delta'] = merged['v_obs'] - merged['v_pred']
-            merged['station'] = name
-            merged['distance_km'] = haversine(epicenter_lat, epicenter_lon, meta['lat'], meta['lon'])
-            records.append(merged[['t', 'station', 'distance_km', 'delta']])
-        else:
-            logging.warning(f"No data for station {name}")
-    except Exception as e:
-        logging.error(f"Error processing station {name}: {e}")
-if records:
-    df = pd.concat(records)
-    with open(restructured_cache_file, "wb") as f:
-        pickle.dump(df, f)
-    logging.info(f"Restructured data cached to {restructured_cache_file}")
-    # Create and save pivoted DataFrame for Dash app
-    df_pivot = df.pivot(index='t', columns='station', values='delta')
-    # Compute distances and sort stations
-    station_distance = {name: haversine(epicenter_lat, epicenter_lon, meta['lat'], meta['lon']) for name, meta in stations.items()}
-    sorted_stations = sorted(df_pivot.columns, key=lambda s: station_distance.get(s, 1e9))
-    df_pivot = df_pivot[sorted_stations]
-    with open('pivoted_wave_data.pkl', 'wb') as f:
-        pickle.dump({'df_pivot': df_pivot, 'station_order': sorted_stations, 'station_distance': station_distance}, f)
-    logging.info(f"Pivoted data cached to pivoted_wave_data.pkl")
-else:
-    logging.error("No valid data to process. Exiting.")
-    exit(1)
-df['t_str'] = df['t'].dt.strftime('%Y-%m-%d %H:%M')
-
 if __name__ == "__main__":
-    logging.info("Data collection, restructuring, and caching complete. Raw data: %s, Restructured data: %s, Pivoted data: %s", raw_cache_file, restructured_cache_file, 'pivoted_wave_data.pkl')
+    raw_cache_file = "data/raw_api_cache.pkl"
+    restructured_cache_file = "data/restructured_data.pkl"
+    raw_data = {}
+
+    # Always fetch fresh data and overwrite cache
+    logging.info("Fetching fresh data from NOAA API (date=recent)...")
+    for name, meta in stations.items():
+        raw_data[name] = {}
+        for product in ["one_minute_water_level", "predictions"]:
+            raw_data[name][product] = fetch_data(meta["id"], product)
+    with open(raw_cache_file, "wb") as f:
+        pickle.dump(raw_data, f)
+    logging.info(f"Raw API data cached to {raw_cache_file}")
+
+    logging.info("Processing and restructuring data...")
+    records = []
+    for name, meta in stations.items():
+        try:
+            obs = raw_data.get(name, {}).get("one_minute_water_level", pd.DataFrame())
+            pred = raw_data.get(name, {}).get("predictions", pd.DataFrame())
+            if not obs.empty and not pred.empty:
+                obs['t'] = pd.to_datetime(obs['t'], errors='coerce')
+                obs['v'] = pd.to_numeric(obs['v'], errors='coerce')
+                pred['t'] = pd.to_datetime(pred['t'], errors='coerce')
+                pred['v'] = pd.to_numeric(pred['v'], errors='coerce')
+                merged = pd.merge(obs, pred, on='t', suffixes=('_obs', '_pred'))
+                merged['delta'] = merged['v_obs'] - merged['v_pred']
+                merged['station'] = name
+                merged['distance_km'] = haversine(epicenter_lat, epicenter_lon, meta['lat'], meta['lon'])
+                records.append(merged[['t', 'station', 'distance_km', 'delta']])
+            else:
+                logging.warning(f"No data for station {name}")
+        except Exception as e:
+            logging.error(f"Error processing station {name}: {e}")
+    if records:
+        df = pd.concat(records)
+        with open(restructured_cache_file, "wb") as f:
+            pickle.dump(df, f)
+        logging.info(f"Restructured data cached to {restructured_cache_file}")
+        # Create and save pivoted DataFrame for Dash app
+        df_pivot = df.pivot(index='t', columns='station', values='delta')
+        # Compute distances and sort stations
+        station_distance = {name: haversine(epicenter_lat, epicenter_lon, meta['lat'], meta['lon']) for name, meta in stations.items()}
+        sorted_stations = sorted(df_pivot.columns, key=lambda s: station_distance.get(s, 1e9))
+        df_pivot = df_pivot[sorted_stations]
+        with open('data/pivoted_wave_data.pkl', 'wb') as f:
+            pickle.dump({'df_pivot': df_pivot, 'station_order': sorted_stations, 'station_distance': station_distance}, f)
+        logging.info(f"Pivoted data cached to data/pivoted_wave_data.pkl")
+    else:
+        logging.error("No valid data to process. Exiting.")
+        exit(1)
+    df['t_str'] = df['t'].dt.strftime('%Y-%m-%d %H:%M')
+
+    logging.info("Data collection, restructuring, and caching complete. Raw data: %s, Restructured data: %s, Pivoted data: %s", raw_cache_file, restructured_cache_file, 'data/pivoted_wave_data.pkl')

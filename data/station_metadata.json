@@ -1,0 +1,93 @@
+{
+  "1611400": {
+    "name": "Nawiliwili",
+    "lat": 21.9544,
+    "lng": -159.3561,
+    "state": "HI",
+    "type": null
+  },
+  "1612340": {
+    "name": "Honolulu",
+    "lat": 21.303333,
+    "lng": -157.86453,
+    "state": "HI",
+    "type": null
+  },
+  "1612401": {
+    "name": "Pearl Harbor",
+    "lat": 21.3675,
+    "lng": -157.9639,
+    "state": "HI",
+    "type": null
+  },
+  "1612480": {
+    "name": "Mokuoloe",
+    "lat": 21.433056,
+    "lng": -157.79,
+    "state": "HI",
+    "type": null
+  },
+  "1615680": {
+    "name": "Kahului, Kahului Harbor",
+    "lat": 20.894945,
+    "lng": -156.469,
+    "state": "HI",
+    "type": null
+  },
+  "1617433": {
+    "name": "Kawaihae",
+    "lat": 20.0366,
+    "lng": -155.8294,
+    "state": "HI",
+    "type": null
+  },
+  "1617760": {
+    "name": "Hilo, Hilo Bay, Kuhio Bay",
+    "lat": 19.730278,
+    "lng": -155.05556,
+    "state": "HI",
+    "type": null
+  },
+  "1619910": {
+    "name": "Sand Island, Midway Islands",
+    "lat": 28.211666,
+    "lng": -177.36,
+    "state": "United States of America",
+    "type": null
+  },
+  "1630000": {
+    "name": "Apra Harbor, Guam",
+    "lat": 13.443389,
+    "lng": 144.65636,
+    "state": "United States of America",
+    "type": null
+  },
+  "1631428": {
+    "name": "Pago Bay, Guam",
+    "lat": 13.428333,
+    "lng": 144.79889,
+    "state": "United States of America",
+    "type": null
+  },
+  "1770000": {
+    "name": "Pago Pago, American Samoa",
+    "lat": -14.28,
+    "lng": -170.69,
+    "state": "American Samoa",
+    "type": null
+  },
+  "1820000": {
+    "name": "Kwajalein, Marshall Islands",
+    "lat": 8.731667,
+    "lng": 167.73611,
+    "state": "United States of America",
+    "type": null
+  },
+  "1890000": {
+    "name": "Wake Island, Pacific Ocean",
+    "lat": 19.290556,
+    "lng": 166.6175,
+    "state": "United States of America",
+    "type": null
+  }
+}

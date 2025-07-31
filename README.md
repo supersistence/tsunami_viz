@@ -9,8 +9,8 @@ This project is a scientific visualization tool for exploring tsunami wave propa
 - **Accurate distances**: All station distances are calculated from the precise epicenter (52.473°N, 160.396°E).
 
 ## Data Sources
-- **Observed Water Levels**: [NOAA CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/datagetter) (`one_minute_water_level` product)
-- **Predicted Tides**: [NOAA CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/datagetter) (`predictions` product, 1-minute interval)
+- **Observed Water Levels**: [NOAA CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/) (`one_minute_water_level` product)
+- **Predicted Tides**: [NOAA CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/) (`predictions` product, 1-minute interval)
 - **Station Metadata**: [NOAA CO-OPS Metadata API](https://api.tidesandcurrents.noaa.gov/mdapi/prod/)
 
 All data is fetched live from NOAA and cached locally for efficiency and reproducibility.
