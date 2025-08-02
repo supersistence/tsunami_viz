@@ -3,6 +3,7 @@ from dash import dcc, html
 import plotly.graph_objects as go
 import pandas as pd
 import pickle
+import dash_leaflet as dl
 import os
 import numpy as np
 import plotly
@@ -252,6 +253,9 @@ for i, station in enumerate(station_order):
 yaxis_range = y_range  # use the same as oscilloscope plot
 for i in range(1, len(station_order)+1):
     station_timeseries_fig.update_yaxes(range=yaxis_range, row=i, col=1)
+
+# Colors now use Plotly's standard defaults to match time series
+
 station_timeseries_fig.update_layout(
     height=600,
     title=dict(
@@ -340,137 +344,65 @@ for name in station_order:
         if not found:
             raise KeyError(f"Cannot map station display name '{name}' to station ID for metadata lookup. Check station_order and metadata consistency.")
 station_lats = [station_meta.loc[int(sid), 'lat'] for sid in station_ids]
-station_lons = [station_meta.loc[int(sid), 'lng'] for sid in station_ids]
+station_lons_raw = [station_meta.loc[int(sid), 'lng'] for sid in station_ids]
+
+# Shift all coordinates to western Pacific side for unified view
+def shift_to_western_pacific(lon):
+    """Shift longitude to western Pacific side (-180 to -120) for unified view"""
+    if lon > 0:  # Eastern coordinates
+        return lon - 360
+    return lon
+
+station_lons = [shift_to_western_pacific(lon) for lon in station_lons_raw]
+
+# Earthquake coordinates - also shift to western Pacific
+epicenter_lat, epicenter_lon = 52.473, shift_to_western_pacific(160.396)
+
+# Calculate optimal bounding box for auto-fit
+all_lats = station_lats + [epicenter_lat]
+all_lons = station_lons + [epicenter_lon]
+
+min_lat, max_lat = min(all_lats), max(all_lats)
+min_lon, max_lon = min(all_lons), max(all_lons)
+
+# Use generous padding to ensure all markers are well within view
+lat_padding = max((max_lat - min_lat) * 0.15, 3)  # At least 3 degrees padding
+lon_padding = max((max_lon - min_lon) * 0.12, 5)  # At least 5 degrees padding
+
+bounds_min_lat = min_lat - lat_padding
+bounds_max_lat = max_lat + lat_padding
+bounds_min_lon = min_lon - lon_padding
+bounds_max_lon = max_lon + lon_padding
+
+# Calculate center from bounds
+center_lat = (bounds_min_lat + bounds_max_lat) / 2
+center_lon = (bounds_min_lon + bounds_max_lon) / 2
+
+# Use Plotly's exact default color sequence for time series alignment
+station_colors = [
+    '#1f77b4',  # blue
+    '#ff7f0e',  # orange  
+    '#2ca02c',  # green
+    '#d62728',  # red
+    '#9467bd',  # purple
+    '#8c564b',  # brown
+    '#e377c2'   # pink
+]
+
+print(f"🌍 COORDINATE TRANSFORMATION APPLIED:")
+print(f"   Shifted {sum(1 for orig, new in zip(station_lons_raw, station_lons) if orig != new)} stations to western Pacific")
+print(f"   Coordinate range: Lat {min_lat:.1f}° to {max_lat:.1f}° | Lon {min_lon:.1f}° to {max_lon:.1f}°")
+print(f"   With padding: Lat {bounds_min_lat:.1f}° to {bounds_max_lat:.1f}° | Lon {bounds_min_lon:.1f}° to {bounds_max_lon:.1f}°")
+print(f"   Map center: [{center_lat:.2f}, {center_lon:.2f}]")
+print(f"🎨 Using Plotly default colors: {station_colors}")
 
 # Prepare initial map frame with improved station focus
 map_marker_sizes = [max(12, min(35, abs(y0[i])*20)) for i in range(len(y0))]  # larger, more visible markers
 map_marker_colors = y0  # use delta directly for color
 
-map_fig = go.Figure()
-
-# Add earthquake epicenter first (so it appears behind stations)
-map_fig.add_trace(go.Scattergeo(
-    lon=[epicenter_lon],
-    lat=[epicenter_lat],
-    text=['Earthquake<br>Epicenter'],
-    marker=dict(
-        size=20,
-        color='red',
-        symbol='star',
-        line=dict(width=2, color='darkred')
-    ),
-    mode='markers+text',
-    textposition="bottom center",
-    textfont=dict(size=12, color='darkred'),
-    name='Epicenter',
-    showlegend=False
-))
-
-# Add tsunami monitoring stations
-map_fig.add_trace(go.Scattergeo(
-    lon=station_lons,
-    lat=station_lats,
-    text=[f'{name}' for name in station_order],
-    marker=dict(
-        size=map_marker_sizes,
-        color=map_marker_colors,
-        colorscale='RdBu',
-        cmin=y_range[0],
-        cmax=y_range[1],
-        # colorbar=dict(
-        #     title=dict(text="Wave Height Δ (m)", font=dict(size=12)), 
-        #     len=0.6, 
-        #     y=0.75,
-        #     thickness=15
-        # ),
-        line=dict(width=2, color='black'),
-        symbol='circle'
-    ),
-    mode='markers+text',
-    textposition="top center",
-    textfont=dict(size=10, color='black'),
-    name='Monitoring Stations',
-    showlegend=False
-))
-map_fig.update_geos(
-    projection_type="natural earth",
-    showcountries=True, 
-    showcoastlines=True, 
-    showland=True, 
-    landcolor='lightgray',
-    oceancolor='lightblue',
-    coastlinecolor='gray',
-    center=dict(lat=40, lon=180),  # Center on Pacific using positive longitude
-    projection_scale=0.6
-)
-map_fig.update_layout(
-    title=dict(
-        text="Pacific Station Locations & Wave Δs",
-        font=dict(size=16, color='#2c3e50')
-    ),
-    margin=dict(l=0, r=0, t=50, b=0),
-    height=400,
-    paper_bgcolor="white",
-    showlegend=False#,  # Remove legend to save space
-    # geo=dict(
-    #     # Add padding around the automatically fitted bounds for better view
-    #     lonaxis=dict(range=[min(station_lons + [epicenter_lon]) - 10, max(station_lons + [epicenter_lon]) + 10]),
-    #     lataxis=dict(range=[min(station_lats + [epicenter_lat]) - 5, max(station_lats + [epicenter_lat]) + 5])
-    # )
-)
-
-# Animation frames for map
-map_frames = []
-for i, t in enumerate(all_frames):
-    frame_y = df_pivot_interp.iloc[i].values.tolist()
-    sizes = [max(12, min(35, abs(val)*20)) for val in frame_y]  # match improved sizing
-    colors = frame_y
-    map_frames.append(go.Frame(
-        data=[
-            # Epicenter (static)
-            go.Scattergeo(
-                lon=[epicenter_lon],
-                lat=[epicenter_lat],
-                text=['🌋 Earthquake<br>Epicenter'],
-                marker=dict(
-                    size=20,
-                    color='red',
-                    symbol='star',
-                    line=dict(width=2, color='darkred')
-                ),
-                mode='markers+text',
-                textposition="bottom center",
-                textfont=dict(size=12, color='darkred'),
-                showlegend=False
-            ),
-            # Stations (animated)
-            go.Scattergeo(
-                lon=station_lons,
-                lat=station_lats,
-                marker=dict(
-                    size=sizes,
-                    color=colors,
-                    colorscale='RdBu',
-                    cmin=y_range[0],
-                    cmax=y_range[1],
-                    line=dict(width=2, color='black'),
-                    symbol='circle'
-                ),
-                text=[f'📊 {name}' for name in station_order],
-                mode='markers+text',
-                textposition="top center",
-                textfont=dict(size=10, color='black'),
-                showlegend=False
-            )
-        ],
-        name=str(t)
-    ))
-map_fig.frames = map_frames
-# Map animation controlled by unified dashboard controls
+# OLD PLOTLY MAP CODE REMOVED - NOW USING DASH LEAFLET BATHYMETRY MAP
 
 # --- Dash Layout with Map ---
-from dash.dependencies import Input, Output
-
 from dash.dependencies import Input, Output, State
 from dash import clientside_callback, ClientsideFunction
 
@@ -486,7 +418,7 @@ app.layout = html.Div([
                 style={'margin': '0', 'color': '#2c3e50', 'fontSize': '2.5rem', 'fontWeight': 'bold'}),
         html.P("Interactive visualization of tsunami waves following the 2025 Kamchatka Peninsula earthquake",
                style={'margin': '10px 0 5px 0', 'color': '#7f8c8d', 'fontSize': '1.1rem'}),
-        html.P("🌋 Earthquake: 29 July 2025, 23:24:52 UTC | 📍 52.473°N, 160.396°E | ⏰ Timeline: Earthquake to July 31 00:00",
+        html.P("⚠️ Earthquake: 29 July 2025, 23:24:52 UTC | 📍 Epicenter: 52.473°N, 160.396°E | ⏰ Timeline: ~24 hrs post-quake | ⏱️ Frequency: 1-minute intervals",
                style={'margin': '0', 'color': '#e74c3c', 'fontSize': '1.0rem', 'fontWeight': 'bold'})
     ], style={'textAlign': 'center', 'padding': '20px', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', 
               'borderRadius': '10px', 'marginBottom': '25px', 'boxShadow': '0 4px 6px rgba(0,0,0,0.1)'}),
@@ -547,7 +479,44 @@ app.layout = html.Div([
         # Left Column - Geographic Overview
         html.Div([
             html.H3("🗺️ Geographic Overview", style={'color': '#2c3e50', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
-            dcc.Graph(id="overview-map", style={'height': '400px'}),
+            # Real bathymetry map using MapTiler Ocean tiles
+            # Based on: https://docs.maptiler.com/sdk-js/examples/ocean-bathymetry/
+            dl.Map(
+                id="bathymetry-map",
+                style={'width': '100%', 'height': '400px'},
+                center=[center_lat, center_lon],  # Auto-calculated optimal center
+                zoom=4,
+                bounds=[[bounds_min_lat, bounds_min_lon], [bounds_max_lat, bounds_max_lon]],  # Auto-fit bounds
+                worldCopyJump=True,  # Handle IDL properly
+                children=[
+                    # MapTiler Ocean bathymetry tile layer
+                    dl.TileLayer(
+                        url="https://api.maptiler.com/maps/ocean/256/{z}/{x}/{y}.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
+                        attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+                        maxZoom=18
+                    ),
+                    # Earthquake epicenter - large and prominent
+                    dl.CircleMarker(
+                        center=[epicenter_lat, epicenter_lon],
+                        radius=20,
+                        color='darkred',
+                        weight=4,
+                        fillColor='red',
+                        fillOpacity=0.9,
+                        children=[dl.Tooltip("🌋 EARTHQUAKE EPICENTER\n29 July 2025, 23:24 UTC")]
+                    ),
+                    # Dynamic station markers with time series colors
+                    *[dl.CircleMarker(
+                        center=[station_lats[i], station_lons[i]],
+                        radius=15,
+                        color='white',
+                        weight=2,
+                        fillColor=station_colors[i],
+                        fillOpacity=0.8,
+                        children=[dl.Tooltip(f"{station_order[i]}: {y0[i]:.3f}m wave Δ")]
+                    ) for i in range(len(station_order))]
+                ]
+            ),
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'paddingRight': '2%'}),
         
         # Right Column - Wave Propagation Analysis
@@ -645,19 +614,62 @@ def update_timeline_clock(frame_index):
     return formatted_time
 
 @app.callback(
-    [Output("overview-map", "figure"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
+    [Output("bathymetry-map", "children"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
     [Input("frame-slider", "value")]
 )
 def update_all_figures(frame_idx):
     t = all_frames[frame_idx]
-    # --- Update overview map ---
+    # --- Update bathymetry map ---
     frame_y = df_pivot_interp.loc[t].values.tolist()
-    sizes = [max(12, min(35, abs(val)*20)) for val in frame_y]  # match improved sizing
-    colors = frame_y
-    map_fig_c = map_fig.to_dict()
-    # Update only the stations trace (index 1), epicenter (index 0) stays static
-    map_fig_c['data'][1]['marker']['size'] = sizes
-    map_fig_c['data'][1]['marker']['color'] = colors
+    
+    # Create updated station markers
+    station_markers = []
+    for i, (lat, lon, name) in enumerate(zip(station_lats, station_lons, station_order)):
+        # Size based on current wave delta
+        size = max(15, min(40, abs(frame_y[i])*25))
+        # Use consistent time series colors, but adjust opacity based on wave delta
+        base_color = station_colors[i]
+        # Higher opacity for larger wave deltas
+        opacity = max(0.6, min(1.0, abs(frame_y[i])*2 + 0.6))
+        
+        station_markers.append(
+            dl.CircleMarker(
+                center=[lat, lon],
+                radius=size,
+                color='white',
+                weight=2,
+                fillColor=base_color,
+                fillOpacity=opacity,
+                children=[
+                    dl.Tooltip(f"{name}: {frame_y[i]:.3f}m wave Δ")
+                ]
+            )
+        )
+    
+    # Create epicenter marker (static) - use CircleMarker for consistency
+    epicenter_marker = dl.CircleMarker(
+        center=[epicenter_lat, epicenter_lon],
+        radius=20,
+        color='darkred',
+        weight=4,
+        fillColor='red',
+        fillOpacity=0.9,
+        children=[dl.Tooltip("🌋 EARTHQUAKE EPICENTER\n29 July 2025, 23:24 UTC")]
+    )
+    
+    # Updated map children with bathymetry tiles
+    map_children = [
+        # MapTiler Ocean bathymetry tile layer
+        dl.TileLayer(
+            url="https://api.maptiler.com/maps/ocean/256/{z}/{x}/{y}.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
+            attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+            maxZoom=18
+        ),
+        # Epicenter marker
+        epicenter_marker,
+        # Updated station markers with Plotly colors
+        *station_markers
+    ]
     # --- Update oscilloscope ---
     x = [float(d) for d in distances]
     y = [float(v) for v in frame_y]
@@ -696,7 +708,7 @@ def update_all_figures(frame_idx):
             "layer": "above"
         })
     fig_ts["layout"]["shapes"] = shapes
-    return map_fig_c, fig_c, fig_ts
+    return map_children, fig_c, fig_ts
 
 # Add clientside callback for keyboard controls
 app.clientside_callback(
