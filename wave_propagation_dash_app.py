@@ -23,6 +23,28 @@ epicenter_lat, epicenter_lon = 52.473, 160.396
 # Earthquake timing: 30 July 2025, at 11:24:52 PETT (29 July 2025, 23:24:52 UTC)
 earthquake_time = pd.Timestamp('2025-07-29 23:24:52')  # timezone-naive to match data
 
+# Timezone conversion functions
+def convert_to_hst(utc_time):
+    """Convert UTC time to Hawaii Standard Time (HST)"""
+    # HST is UTC-10
+    hst_offset = pd.Timedelta(hours=10)
+    return utc_time - hst_offset
+
+def format_time_display(time, timezone_mode):
+    """Format time for display based on timezone mode"""
+    if timezone_mode == 'HST':
+        hst_time = convert_to_hst(time)
+        return hst_time.strftime('%Y-%m-%d %H:%M:%S HST')
+    else:  # UTC
+        return time.strftime('%Y-%m-%d %H:%M:%S UTC')
+
+def get_percent(t, all_frames):
+    """Return percent along timeline for a given timestamp t."""
+    t0, t1 = all_frames[0], all_frames[-1]
+    return ((t - t0) / (t1 - t0)) * 100
+
+
+
 # Remove unwanted stations from visualization
 stations_to_remove = ['Pago Pago', 'Kwajalein', 'Apra Harbor', 'Pago Bay', 'Pearl Harbor', 'Mokuoloe']
 for station in stations_to_remove:
@@ -50,7 +72,9 @@ else:
     time_diffs = abs(all_frames - earthquake_time)
     earthquake_frame_idx = time_diffs.argmin()
 
-def create_slider_marks():
+
+
+def create_slider_marks(timezone_mode='UTC'):
     """Create slider marks every 3 hours from July 30 00:00 to July 31 00:00"""
     marks = {}
     
@@ -64,8 +88,12 @@ def create_slider_marks():
         if len(all_frames) > 0 and current_time >= all_frames[0] and current_time <= all_frames[-1]:
             time_diffs = abs(all_frames - current_time)
             closest_idx = int(time_diffs.argmin())
-            # Format: "00:00" for time display
-            time_label = current_time.strftime('%H:%M')
+            # Format time based on timezone
+            if timezone_mode == 'HST':
+                hst_time = convert_to_hst(current_time)
+                time_label = hst_time.strftime('%H:%M')
+            else:
+                time_label = current_time.strftime('%H:%M')
             marks[closest_idx] = time_label
         
         current_time += pd.Timedelta(hours=3)
@@ -73,7 +101,12 @@ def create_slider_marks():
     # Add earthquake marker with special styling
     if earthquake_frame_idx is not None:
         eq_idx = int(earthquake_frame_idx)
-        marks[eq_idx] = "🌋 EQ"
+        marks[eq_idx] = "🌋EQ"
+    
+    # Add hardcoded station arrival markers at specific frame numbers
+    marks[245] = "📍M"  # Frame 245 for Midway
+    marks[355] = "📍H"  # Frame 355 for Hawaii
+    print(f"DEBUG: Added hardcoded slider marks - Midway at frame 245, Hawaii at frame 355")
     
     return marks
 
@@ -365,34 +398,30 @@ all_lons = station_lons + [epicenter_lon]
 min_lat, max_lat = min(all_lats), max(all_lats)
 min_lon, max_lon = min(all_lons), max(all_lons)
 
-# Use generous padding to ensure all markers are well within view
-lat_padding = max((max_lat - min_lat) * 0.15, 3)  # At least 3 degrees padding
-lon_padding = max((max_lon - min_lon) * 0.12, 5)  # At least 5 degrees padding
+# Use precise bounds that perfectly frame the Pacific monitoring stations
+bounds = [[2.635789, -209.882813], [55.578345, -116.367188]]  # Optimal Pacific view
+bounds_min_lat, bounds_min_lon = bounds[0]
+bounds_max_lat, bounds_max_lon = bounds[1]
 
-bounds_min_lat = min_lat - lat_padding
-bounds_max_lat = max_lat + lat_padding
-bounds_min_lon = min_lon - lon_padding
-bounds_max_lon = max_lon + lon_padding
-
-# Calculate center from bounds
+# Calculate center from hardcoded bounds
 center_lat = (bounds_min_lat + bounds_max_lat) / 2
 center_lon = (bounds_min_lon + bounds_max_lon) / 2
 
 # Use Plotly's exact default color sequence for time series alignment
 station_colors = [
-    '#1f77b4',  # blue
-    '#ff7f0e',  # orange  
-    '#2ca02c',  # green
-    '#d62728',  # red
-    '#9467bd',  # purple
-    '#8c564b',  # brown
-    '#e377c2'   # pink
+    '#636EFA',  # cornflower blue
+    '#EF553B',  # bittersweet orange  
+    '#00CC96',  # persian green
+    '#C490FD',  # lavender
+    '#FFA15A',  # light orange
+    '#1BD3F3',  # robbins egg blue
+    '#FF6692'   # light crimson
 ]
 
 print(f"🌍 COORDINATE TRANSFORMATION APPLIED:")
 print(f"   Shifted {sum(1 for orig, new in zip(station_lons_raw, station_lons) if orig != new)} stations to western Pacific")
 print(f"   Coordinate range: Lat {min_lat:.1f}° to {max_lat:.1f}° | Lon {min_lon:.1f}° to {max_lon:.1f}°")
-print(f"   With padding: Lat {bounds_min_lat:.1f}° to {bounds_max_lat:.1f}° | Lon {bounds_min_lon:.1f}° to {bounds_max_lon:.1f}°")
+print(f"   Hardcoded bounds: Lat {bounds_min_lat:.1f}° to {bounds_max_lat:.1f}° | Lon {bounds_min_lon:.1f}° to {bounds_max_lon:.1f}°")
 print(f"   Map center: [{center_lat:.2f}, {center_lon:.2f}]")
 print(f"🎨 Using Plotly default colors: {station_colors}")
 
@@ -451,21 +480,26 @@ app.layout = html.Div([
                         'fontSize': '16px', 'fontWeight': 'bold', 'color': '#2c3e50',
                         'backgroundColor': '#ecf0f1', 'padding': '8px 12px', 'borderRadius': '6px',
                         'border': '2px solid #bdc3c7', 'fontFamily': 'monospace'
-                    })
+                    }),
+                    html.Button('🔄 UTC', id='timezone-toggle', n_clicks=0,
+                               style={'padding': '8px 16px', 'fontSize': '14px', 'fontWeight': 'bold',
+                                     'backgroundColor': '#3498db', 'color': 'white', 'border': 'none',
+                                     'borderRadius': '6px', 'cursor': 'pointer', 'marginLeft': '20px',
+                                     'boxShadow': '0 2px 4px rgba(0,0,0,0.2)', 'transition': 'all 0.3s'})
                 ], style={'display': 'flex', 'alignItems': 'center'})
             ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
             
             html.Div([
-                html.Label("Timeline Navigation:", style={'fontSize': '14px', 'fontWeight': 'bold', 'color': '#2c3e50', 'marginBottom': '10px', 'display': 'block'}),
-                # html.P("🌋 Red marker shows earthquake occurrence", style={'fontSize': '12px', 'color': '#e74c3c', 'margin': '5px 0', 'fontStyle': 'italic'}),
+                html.Label("Timeline Navigation: 🌋EQ = Earthquake, 📍M = Midway, 📍H = Hawaii", style={'fontSize': '14px', 'fontWeight': 'bold', 'color': '#2c3e50', 'marginBottom': '10px', 'display': 'block'}),
+                html.P("🌋 Red marker shows earthquake occurrence", style={'fontSize': '12px', 'color': '#e74c3c', 'margin': '5px 0', 'fontStyle': 'italic'}),
                 html.P("⌨️ Keyboard: Space=Play/Pause, ←/→=Manual step, ↑/↓=Speed", style={'fontSize': '11px', 'color': '#95a5a6', 'margin': '2px 0', 'fontStyle': 'italic'}),
-                dcc.Slider(
-                    id="frame-slider",
-                    min=0,
-                    max=len(all_frames)-1,
-                    value=0,
+        dcc.Slider(
+            id="frame-slider",
+            min=0,
+            max=len(all_frames)-1,
+            value=0,
                     marks=create_slider_marks(),
-                    step=1,
+            step=1,
                     updatemode='drag',
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
@@ -485,7 +519,7 @@ app.layout = html.Div([
                 id="bathymetry-map",
                 style={'width': '100%', 'height': '400px'},
                 center=[center_lat, center_lon],  # Auto-calculated optimal center
-                zoom=4,
+                zoom=3,
                 bounds=[[bounds_min_lat, bounds_min_lon], [bounds_max_lat, bounds_max_lon]],  # Auto-fit bounds
                 worldCopyJump=True,  # Handle IDL properly
                 children=[
@@ -498,7 +532,7 @@ app.layout = html.Div([
                     # Earthquake epicenter - large and prominent
                     dl.CircleMarker(
                         center=[epicenter_lat, epicenter_lon],
-                        radius=20,
+                        radius=15,
                         color='darkred',
                         weight=4,
                         fillColor='red',
@@ -521,7 +555,7 @@ app.layout = html.Div([
         
         # Right Column - Wave Propagation Analysis
         html.Div([
-            html.H3("📊 Wave Propagation Analysis", style={'color': '#2c3e50', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
+            html.H3("📊 Wave Propagation", style={'color': '#2c3e50', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
             dcc.Graph(id="wave-graph", style={'height': '400px'}),
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'paddingLeft': '2%'}),
     ]),
@@ -600,18 +634,33 @@ def advance_frame(n_intervals, slider_val):
     return next_val
 
 @app.callback(
-    Output("timeline-clock", "children"),
-    [Input("frame-slider", "value")]
+    [Output("timeline-clock", "children"), Output("timezone-toggle", "children")],
+    [Input("frame-slider", "value"), Input("timezone-toggle", "n_clicks")]
 )
-def update_timeline_clock(frame_index):
-    """Update the clock display with current timeline time"""
+def update_timeline_clock(frame_index, timezone_clicks):
+    """Update the clock display with current timeline time and timezone toggle"""
     if frame_index is None or frame_index >= len(all_frames):
-        return "Loading..."
+        return "Loading...", "🔄 UTC"
+    
+    # Determine timezone mode based on toggle clicks
+    timezone_mode = 'HST' if timezone_clicks and timezone_clicks % 2 == 1 else 'UTC'
     
     current_time = all_frames[frame_index]
-    # Format as: "Jul 29, 23:24 UTC" 
-    formatted_time = current_time.strftime("%b %d, %H:%M UTC")
-    return formatted_time
+    formatted_time = format_time_display(current_time, timezone_mode)
+    
+    # Update toggle button text
+    toggle_text = "🔄 HST" if timezone_mode == 'HST' else "🔄 UTC"
+    
+    return formatted_time, toggle_text
+
+@app.callback(
+    Output("frame-slider", "marks"),
+    [Input("timezone-toggle", "n_clicks")]
+)
+def update_slider_marks(timezone_clicks):
+    """Update slider marks when timezone is toggled"""
+    timezone_mode = 'HST' if timezone_clicks and timezone_clicks % 2 == 1 else 'UTC'
+    return create_slider_marks(timezone_mode)
 
 @app.callback(
     [Output("bathymetry-map", "children"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
@@ -745,5 +794,20 @@ app.clientside_callback(
     Input('keyboard-listener', 'id')
 )
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    import os
+    
+    # Get port from environment variable (for cloud deployment)
+    port = int(os.environ.get('PORT', 8050))
+    
+    # Deployment vs local development settings
+    debug_mode = os.environ.get('DEBUG', 'True').lower() == 'true'
+    
+    print(f"🚀 Starting Tsunami Visualization App on port {port}")
+    print(f"🌊 Debug mode: {debug_mode}")
+    
+    app.run(
+        debug=debug_mode,
+        host='0.0.0.0',  # Allow external connections
+        port=port
+    )
