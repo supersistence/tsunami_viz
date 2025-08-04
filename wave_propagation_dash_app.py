@@ -7,15 +7,22 @@ import dash_leaflet as dl
 import os
 import numpy as np
 import plotly
+import time
 print("DEBUG: plotly version:", plotly.__version__)
 print("DEBUG: dash version:", dash.__version__)
 
+# Start timing app startup
+startup_start_time = time.time()
+
 # Load pivoted data for oscilloscope-style animation
+data_load_start = time.time()
 with open("data/pivoted_wave_data.pkl", "rb") as f:
     pivoted = pickle.load(f)
 df_pivot = pivoted['df_pivot']  # index: t, columns: station, values: delta
 station_order = pivoted['station_order']
 station_distances = pivoted['station_distance']
+data_load_time = time.time() - data_load_start
+print(f"⏱️ Data loading: {data_load_time:.3f}s")
 
 # Earthquake epicenter coordinates (2025 Kamchatka Peninsula earthquake)
 epicenter_lat, epicenter_lon = 52.473, 160.396
@@ -131,7 +138,26 @@ y_range = [float(np.nanmin(all_y[np.isfinite(all_y)])) - 0.1, float(np.nanmax(al
 for i in range(min(3, len(df_pivot_interp))):
     print(f'DEBUG: frame {i} y:', df_pivot_interp.iloc[i].values.tolist())
 
+# ⚡ OPTIMIZATION #2: Pre-calculate all frame data to eliminate DataFrame lookups
+print("⚡ Pre-calculating frame data for performance optimization...")
+precalc_start = time.time()
+
+# Pre-calculate wave values for all frames
+frame_data_cache = {}
+for i, t in enumerate(all_frames):
+    frame_y = df_pivot_interp.iloc[i].values.tolist()
+    frame_data_cache[i] = {
+        'timestamp': t,
+        'wave_values': frame_y,
+        'x_values': [float(d) for d in distances]  # Pre-calculate x values too
+    }
+
+precalc_time = time.time() - precalc_start
+print(f"⚡ Frame data pre-calculation: {precalc_time:.3f}s ({len(frame_data_cache)} frames)")
+print(f"⚡ Memory usage: ~{len(frame_data_cache) * len(station_order) * 8 / 1024:.1f}KB for wave data")
+
 # Build go.Figure with animation
+figure_build_start = time.time()
 fig = go.Figure()
 
 # Add horizontal baseline at delta = 0
@@ -145,9 +171,9 @@ fig.add_shape(
     layer="below"
 )
 
-# Add initial oscilloscope-style polyline (first frame)
-x0 = [float(d) for d in distances]
-y0 = [float(v) for v in df_pivot_interp.iloc[0].values.tolist()]
+# Add initial oscilloscope-style polyline (first frame) - using pre-calculated data
+x0 = frame_data_cache[0]['x_values']
+y0 = frame_data_cache[0]['wave_values']
 print('DEBUG: initial trace x:', x0)
 print('DEBUG: initial trace y:', y0)
 fig.add_trace(go.Scatter(
@@ -218,12 +244,12 @@ fig.add_shape(
     layer="below"
 )
 
-# Animation frames: one continuous polyline per frame
+# Animation frames: one continuous polyline per frame - using pre-calculated data
 frames = []
-for i, t in enumerate(all_frames):
-    frame_y = df_pivot_interp.iloc[i].values.tolist()
-    x = [float(d) for d in distances]
-    y = [float(v) for v in frame_y]
+for i in range(len(all_frames)):
+    frame_data = frame_data_cache[i]
+    x = frame_data['x_values']
+    y = frame_data['wave_values']
     frames.append(go.Frame(
         data=[go.Scatter(
             x=x,
@@ -233,7 +259,7 @@ for i, t in enumerate(all_frames):
             marker=dict(size=10, color='firebrick'),
             showlegend=False
         )],
-        name=str(t)
+        name=str(frame_data['timestamp'])
     ))
 fig.frames = frames
 
@@ -253,6 +279,9 @@ fig.update_layout(
     margin=dict(t=120, b=40, l=60, r=20),  # More space for 3-level labels
     showlegend=False  # Remove legend to save space - single trace is self-explanatory
 )
+
+figure_build_time = time.time() - figure_build_start
+print(f"⏱️ Figure building: {figure_build_time:.3f}s")
 
 
 # Dash app layout
@@ -354,42 +383,14 @@ station_timeseries_fig.update_layout(shapes=earthquake_shapes)
 # )
 
 # --- Animated Overview Map Construction ---
-# Load station lat/lon from station metadata
-with open("data/station_metadata.json", "r") as f:
-    station_meta = pd.read_json(f).T
+# Hardcoded station coordinates (pre-transformed to Western Pacific view)
+# These coordinates have already been shifted to avoid IDL rendering issues
+# Station order: ['Midway', 'Wake Island', 'Nawiliwili', 'Honolulu', 'Kahului', 'Kawaihae', 'Hilo']
+station_lats = [28.211666, 19.290556, 21.9544, 21.303333, 20.894945, 20.0366, 19.730278]
+station_lons = [-177.36, -193.3825, -159.3561, -157.86453, -156.469, -155.8294, -155.05556]
 
-# Build display name -> id mapping
-from wave_data_collect_and_cache import stations
-# Map display name in station_order to station_id for metadata lookup
-station_ids = []
-for name in station_order:
-    # Try direct lookup in stations dict
-    if name in stations:
-        station_ids.append(stations[name]['id'])
-    else:
-        # Fallback: try to match by canonical name in metadata
-        found = False
-        for sid, meta in station_meta.iterrows():
-            if meta['name'] == name:
-                station_ids.append(sid)
-                found = True
-                break
-        if not found:
-            raise KeyError(f"Cannot map station display name '{name}' to station ID for metadata lookup. Check station_order and metadata consistency.")
-station_lats = [station_meta.loc[int(sid), 'lat'] for sid in station_ids]
-station_lons_raw = [station_meta.loc[int(sid), 'lng'] for sid in station_ids]
-
-# Shift all coordinates to western Pacific side for unified view
-def shift_to_western_pacific(lon):
-    """Shift longitude to western Pacific side (-180 to -120) for unified view"""
-    if lon > 0:  # Eastern coordinates
-        return lon - 360
-    return lon
-
-station_lons = [shift_to_western_pacific(lon) for lon in station_lons_raw]
-
-# Earthquake coordinates - also shift to western Pacific
-epicenter_lat, epicenter_lon = 52.473, shift_to_western_pacific(160.396)
+# Earthquake coordinates (pre-transformed to Western Pacific view)
+epicenter_lat, epicenter_lon = 52.473, -199.604
 
 # Calculate optimal bounding box for auto-fit
 all_lats = station_lats + [epicenter_lat]
@@ -418,16 +419,55 @@ station_colors = [
     '#FF6692'   # light crimson
 ]
 
-print(f"🌍 COORDINATE TRANSFORMATION APPLIED:")
-print(f"   Shifted {sum(1 for orig, new in zip(station_lons_raw, station_lons) if orig != new)} stations to western Pacific")
+print(f"🌍 HARDCODED COORDINATES LOADED:")
 print(f"   Coordinate range: Lat {min_lat:.1f}° to {max_lat:.1f}° | Lon {min_lon:.1f}° to {max_lon:.1f}°")
 print(f"   Hardcoded bounds: Lat {bounds_min_lat:.1f}° to {bounds_max_lat:.1f}° | Lon {bounds_min_lon:.1f}° to {bounds_max_lon:.1f}°")
 print(f"   Map center: [{center_lat:.2f}, {center_lon:.2f}]")
 print(f"🎨 Using Plotly default colors: {station_colors}")
 
-# Prepare initial map frame with improved station focus
-map_marker_sizes = [max(12, min(35, abs(y0[i])*20)) for i in range(len(y0))]  # larger, more visible markers
-map_marker_colors = y0  # use delta directly for color
+# Show improved circle scaling examples
+print()
+print("🎯 IMPROVED CIRCLE SCALING EXAMPLES:")
+print("   Formula: size = 4 + (8 * sqrt(min(1.0, |wave_delta|/0.3)))")
+print("   Opacity: 0.3 + (0.7 * min(1.0, |wave_delta|/0.2))")
+print("   Border: White outline, size/opacity shows magnitude")
+sample_deltas = [0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, -0.1, -0.2]
+for delta in sample_deltas:
+    wave_magnitude = abs(delta)
+    size_factor = min(1.0, wave_magnitude / 0.3)
+    size = 4 + (8 * np.sqrt(size_factor))
+    opacity_factor = min(1.0, wave_magnitude / 0.2)
+    opacity = 0.3 + (0.7 * opacity_factor)
+    print(f"   Wave Δ {delta:+5.2f}m → Size {size:4.1f}px, Opacity {opacity:.2f}")
+
+# Prepare initial map frame with improved station focus - using pre-calculated data
+initial_wave_values = frame_data_cache[0]['wave_values']
+# Use same improved sizing logic as in callback
+initial_marker_data = []
+for i in range(len(initial_wave_values)):
+    wave_delta = initial_wave_values[i]  # Keep sign
+    wave_magnitude = abs(wave_delta)
+    
+    # Match callback sizing logic
+    base_size = 4
+    max_additional_size = 8
+    size_factor = min(1.0, wave_magnitude / 0.3)
+    size = base_size + (max_additional_size * np.sqrt(size_factor))
+    
+    opacity_factor = min(1.0, wave_magnitude / 0.2)
+    opacity = 0.3 + (0.7 * opacity_factor)
+    
+    # Keep clean white border like original
+    border_color = 'white'
+    border_weight = 2
+    
+    initial_marker_data.append({
+        'size': size, 
+        'opacity': opacity,
+        'border_color': border_color,
+        'border_weight': border_weight,
+        'wave_delta': wave_delta
+    })
 
 # OLD PLOTLY MAP CODE REMOVED - NOW USING DASH LEAFLET BATHYMETRY MAP
 
@@ -455,6 +495,10 @@ app.layout = html.Div([
     # Master Control Panel
     html.Div([
         html.H3("🎮 Animation Controls", style={'margin': '0 0 15px 0', 'color': '#34495e', 'fontSize': '1.3rem'}),
+        html.P("Explore tsunami wave propagation following the 2025 Kamchatka earthquake through three synchronized views: geographic map, wave front progression, and station time series record.",
+               style={'color': '#2c3e50', 'fontSize': '1.0rem', 'marginBottom': '10px', 'fontWeight': 'normal'}),
+        html.P("Hover for station details, drag timeline for navigation, and use keyboard shortcuts (Space=play/pause, arrows=step) - all panels update simultaneously.",
+               style={'color': '#7f8c8d', 'fontSize': '0.9rem', 'marginBottom': '15px', 'fontStyle': 'italic'}),
         html.Div([
             html.Div([
                 html.Button('▶️ Play', id='play-pause-btn', n_clicks=0, 
@@ -491,7 +535,7 @@ app.layout = html.Div([
             
             html.Div([
                 html.Label("Timeline Navigation: 🌋EQ = Earthquake, 📍M = Midway, 📍H = Hawaii", style={'fontSize': '14px', 'fontWeight': 'bold', 'color': '#2c3e50', 'marginBottom': '10px', 'display': 'block'}),
-                html.P("🌋 Red marker shows earthquake occurrence", style={'fontSize': '12px', 'color': '#e74c3c', 'margin': '5px 0', 'fontStyle': 'italic'}),
+                #html.P("🌋 Red marker shows earthquake occurrence", style={'fontSize': '12px', 'color': '#e74c3c', 'margin': '5px 0', 'fontStyle': 'italic'}),
                 html.P("⌨️ Keyboard: Space=Play/Pause, ←/→=Manual step, ↑/↓=Speed", style={'fontSize': '11px', 'color': '#95a5a6', 'margin': '2px 0', 'fontStyle': 'italic'}),
         dcc.Slider(
             id="frame-slider",
@@ -513,6 +557,8 @@ app.layout = html.Div([
         # Left Column - Geographic Overview
         html.Div([
             html.H3("🗺️ Geographic Overview", style={'color': '#2c3e50', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
+            html.P("Interactive bathymetry map showing earthquake epicenter (red) and monitoring stations (colored circles) with real-time wave amplitude data.",
+                   style={'color': '#7f8c8d', 'fontSize': '0.9rem', 'marginBottom': '15px', 'fontStyle': 'italic'}),
             # Real bathymetry map using MapTiler Ocean tiles
             # Based on: https://docs.maptiler.com/sdk-js/examples/ocean-bathymetry/
             dl.Map(
@@ -539,15 +585,15 @@ app.layout = html.Div([
                         fillOpacity=0.9,
                         children=[dl.Tooltip("🌋 EARTHQUAKE EPICENTER\n29 July 2025, 23:24 UTC")]
                     ),
-                    # Dynamic station markers with time series colors
+                    # Dynamic station markers with improved sizing and opacity
                     *[dl.CircleMarker(
                         center=[station_lats[i], station_lons[i]],
-                        radius=15,
-                        color='white',
-                        weight=2,
+                        radius=initial_marker_data[i]['size'],
+                        color=initial_marker_data[i]['border_color'],
+                        weight=initial_marker_data[i]['border_weight'],
                         fillColor=station_colors[i],
-                        fillOpacity=0.8,
-                        children=[dl.Tooltip(f"{station_order[i]}: {y0[i]:.3f}m wave Δ")]
+                        fillOpacity=initial_marker_data[i]['opacity'],
+                        children=[dl.Tooltip(f"{station_order[i]}: {initial_marker_data[i]['wave_delta']:+.3f}m wave Δ")]
                     ) for i in range(len(station_order))]
                 ]
             ),
@@ -556,6 +602,8 @@ app.layout = html.Div([
         # Right Column - Wave Propagation Analysis
         html.Div([
             html.H3("📊 Wave Propagation", style={'color': '#2c3e50', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
+            html.P("Oscilloscope-style visualization showing wave front progression across all stations, with distance from epicenter on X-axis and wave height anomaly on Y-axis.",
+                   style={'color': '#7f8c8d', 'fontSize': '0.9rem', 'marginBottom': '15px', 'fontStyle': 'italic'}),
             dcc.Graph(id="wave-graph", style={'height': '400px'}),
         ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'paddingLeft': '2%'}),
     ]),
@@ -563,7 +611,7 @@ app.layout = html.Div([
     # Bottom Row - Station Time Series (Full Width)
     html.Div([
         html.H3("📈 Station Time Series", style={'color': '#2c3e50', 'marginTop': '30px', 'marginBottom': '15px', 'fontSize': '1.2rem'}),
-        html.P("Individual wave height anomalies (observed - predicted) for each monitoring station",
+        html.P("Individual wave height records for each monitoring station over time, showing how tsunami waves arrive at different locations across the Pacific.",
                style={'color': '#7f8c8d', 'fontSize': '0.9rem', 'marginBottom': '15px', 'fontStyle': 'italic'}),
         dcc.Graph(id="timeseries-graph", style={'height': '600px'}),
     ], style={'width': '100%', 'marginTop': '20px'}),
@@ -572,14 +620,17 @@ app.layout = html.Div([
     html.Div([
         html.P([
            # "📍 Earthquake to July 31 00:00 UTC (52.473°N, 160.396°E) | ",
-            "📊 Data Source: NOAA CO-OPS API | ",
-            "⏱️ Update Frequency: 1-minute intervals | "#,
-            #"🏝️ Excluded stations: Apra Harbor, Pago Bay, Pearl Harbor, Mokuoloe"
+           "📊 Data Source: ",
+            html.A("NOAA CO-OPS API", href="https://tidesandcurrents.noaa.gov/web_services_info.html", target="_blank")
         ], style={'margin': '0', 'color': '#95a5a6', 'fontSize': '0.9rem', 'textAlign': 'center'})
     ], style={'marginTop': '30px', 'padding': '15px', 'background': '#ecf0f1', 'borderRadius': '8px'}),
     
     dcc.Interval(id="interval", interval=50, n_intervals=0, disabled=True)
 ], style={'maxWidth': '1400px', 'margin': '0 auto', 'padding': '20px', 'fontFamily': 'Arial, sans-serif', 'backgroundColor': '#f8f9fa'})
+
+# Calculate and display total startup time
+total_startup_time = time.time() - startup_start_time
+print(f"🚀 TOTAL STARTUP TIME: {total_startup_time:.3f}s")
 
 @app.callback(
     [Output("interval", "disabled"), Output("interval", "interval"), Output("play-pause-btn", "children"), Output("play-pause-btn", "style")],
@@ -649,7 +700,7 @@ def update_timeline_clock(frame_index, timezone_clicks):
     formatted_time = format_time_display(current_time, timezone_mode)
     
     # Update toggle button text
-    toggle_text = "🔄 HST" if timezone_mode == 'HST' else "🔄 UTC"
+    toggle_text = "Show UTC" if timezone_mode == 'HST' else "Show HST"
     
     return formatted_time, toggle_text
 
@@ -664,33 +715,52 @@ def update_slider_marks(timezone_clicks):
 
 @app.callback(
     [Output("bathymetry-map", "children"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
-    [Input("frame-slider", "value")]
+    [Input("frame-slider", "value")],
+    prevent_initial_call=True
 )
 def update_all_figures(frame_idx):
-    t = all_frames[frame_idx]
-    # --- Update bathymetry map ---
-    frame_y = df_pivot_interp.loc[t].values.tolist()
+    callback_start_time = time.time()
+    
+    # ⚡ OPTIMIZATION #2: Use pre-calculated frame data instead of DataFrame lookup
+    frame_data = frame_data_cache[frame_idx]
+    t = frame_data['timestamp']
+    frame_y = frame_data['wave_values']
+    frame_x = frame_data['x_values']
     
     # Create updated station markers
     station_markers = []
     for i, (lat, lon, name) in enumerate(zip(station_lats, station_lons, station_order)):
-        # Size based on current wave delta
-        size = max(15, min(40, abs(frame_y[i])*25))
-        # Use consistent time series colors, but adjust opacity based on wave delta
+        # 🎯 IMPROVED: More sensitive circle sizing and visual feedback
+        wave_delta = frame_y[i]  # Keep sign for positive/negative indication
+        wave_magnitude = abs(wave_delta)
+        
+        # Base size for neutral/small waves, then scale based on magnitude
+        base_size = 4  # Much smaller base
+        max_additional_size = 8  # Smaller range: 4px to 12px
+        size_factor = min(1.0, wave_magnitude / 0.3)  # More sensitive threshold
+        size = base_size + (max_additional_size * np.sqrt(size_factor))
+        
+        # Enhanced opacity - more dramatic changes for visual impact
+        opacity_factor = min(1.0, wave_magnitude / 0.2)  # Even more sensitive threshold
+        opacity = 0.3 + (0.7 * opacity_factor)  # 0.3 to 1.0 range
+        
+        # Color intensity based on wave magnitude for additional visual cue
         base_color = station_colors[i]
-        # Higher opacity for larger wave deltas
-        opacity = max(0.6, min(1.0, abs(frame_y[i])*2 + 0.6))
+        
+        # Keep clean white border like original
+        border_color = 'white'
+        border_weight = 2
         
         station_markers.append(
             dl.CircleMarker(
                 center=[lat, lon],
                 radius=size,
-                color='white',
-                weight=2,
+                color=border_color,
+                weight=border_weight,
                 fillColor=base_color,
                 fillOpacity=opacity,
                 children=[
-                    dl.Tooltip(f"{name}: {frame_y[i]:.3f}m wave Δ")
+                    dl.Tooltip(f"{name}: {wave_delta:+.3f}m wave Δ")
                 ]
             )
         )
@@ -719,12 +789,10 @@ def update_all_figures(frame_idx):
         # Updated station markers with Plotly colors
         *station_markers
     ]
-    # --- Update oscilloscope ---
-    x = [float(d) for d in distances]
-    y = [float(v) for v in frame_y]
+    # --- Update oscilloscope --- ⚡ Using pre-calculated data
     fig_c = fig.to_dict()
-    fig_c['data'][0]['x'] = x
-    fig_c['data'][0]['y'] = y
+    fig_c['data'][0]['x'] = frame_x
+    fig_c['data'][0]['y'] = frame_y
     # --- Update time series with vertical line ---
     fig_ts = station_timeseries_fig.to_dict()
     shapes = []
@@ -757,6 +825,10 @@ def update_all_figures(frame_idx):
             "layer": "above"
         })
     fig_ts["layout"]["shapes"] = shapes
+    
+    callback_time = time.time() - callback_start_time
+    print(f"⏱️ Callback execution: {callback_time:.3f}s (frame {frame_idx})")
+    
     return map_children, fig_c, fig_ts
 
 # Add clientside callback for keyboard controls
