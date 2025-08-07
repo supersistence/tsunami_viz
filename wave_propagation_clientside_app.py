@@ -374,36 +374,44 @@ app.layout = html.Div([
 # Client-side callback to load frame data once at startup
 app.clientside_callback(
     """
-    async function(id) {
+    function(id) {
         if (window.tsunamiFrameData) {
             return JSON.stringify({status: 'already_loaded', frames: Object.keys(window.tsunamiFrameData.frames).length});
         }
         
         console.log('🔄 Loading tsunami frame data...');
-        try {
-            const response = await fetch('/assets/frame_data_client.json');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            window.tsunamiFrameData = data;
-            
-            // Also store some useful derived data
-            window.tsunamiStationOrder = ['Midway', 'Wake Island', 'Nawiliwili', 'Honolulu', 'Kahului', 'Kawaihae', 'Hilo'];
-            window.tsunamiDistances = [3262.37, 3728.95, 4815.29, 4963.23, 5084.13, 5200.53, 5275.16];
-            window.tsunamiStationColors = ['#636EFA', '#EF553B', '#00CC96', '#C490FD', '#FFA15A', '#1BD3F3', '#FF6692'];
-            
-            // Store MapTiler API key for client-side use
-            window.MAPTILER_API_KEY = '""" + os.environ.get('MAPTILER_API_KEY', '') + """';
-            
-            console.log(`✅ Loaded ${Object.keys(data.frames).length} frames`);
-            console.log('🎯 Frame data structure:', Object.keys(data.frames['0'] || {}));
-            
-            return JSON.stringify({status: 'loaded', frames: Object.keys(data.frames).length});
-        } catch (error) {
-            console.error('❌ Error loading frame data:', error);
-            return JSON.stringify({status: 'error', message: error.message});
-        }
+        
+        // Use fetch with .then() instead of async/await for better Dash compatibility
+        fetch('/assets/frame_data_client.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                window.tsunamiFrameData = data;
+                
+                // Also store some useful derived data
+                window.tsunamiStationOrder = ['Midway', 'Wake Island', 'Nawiliwili', 'Honolulu', 'Kahului', 'Kawaihae', 'Hilo'];
+                window.tsunamiDistances = [3262.37, 3728.95, 4815.29, 4963.23, 5084.13, 5200.53, 5275.16];
+                window.tsunamiStationColors = ['#636EFA', '#EF553B', '#00CC96', '#C490FD', '#FFA15A', '#1BD3F3', '#FF6692'];
+                
+                // Store MapTiler API key for client-side use
+                window.MAPTILER_API_KEY = '""" + os.environ.get('MAPTILER_API_KEY', '') + """';
+                
+                console.log(`✅ Loaded ${Object.keys(data.frames).length} frames`);
+                console.log('🎯 Frame data structure:', Object.keys(data.frames['0'] || {}));
+                
+                // Trigger a callback update by setting a flag
+                window.tsunamiDataLoaded = true;
+            })
+            .catch(error => {
+                console.error('❌ Error loading frame data:', error);
+                window.tsunamiDataLoadError = error.message;
+            });
+        
+        return JSON.stringify({status: 'loading'});
     }
     """,
     Output('frame-data-store', 'children'),
@@ -471,13 +479,44 @@ app.clientside_callback(
 app.clientside_callback(
     """
     function(frame_index, frame_data_json, timezone_clicks) {
+        // Define proper empty figures to return when data isn't loaded
+        const emptyWaveFig = {
+            data: [],
+            layout: {
+                title: {
+                    text: 'Loading Wave Data...',
+                    font: {size: 16, color: '#2c3e50'}
+                },
+                xaxis: {title: 'Distance from Epicenter (km)'},
+                yaxis: {title: 'Δ Wave Height (m)', range: [-2, 3]},
+                height: 400,
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                margin: {t: 120, b: 40, l: 60, r: 20}
+            }
+        };
+        
+        const emptyTimeseriesFig = {
+            data: [],
+            layout: {
+                title: {
+                    text: 'Loading Station Time Series...',
+                    font: {size: 16, color: '#2c3e50'}
+                },
+                height: 600,
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                margin: {t: 50, b: 60, l: 80, r: 20}
+            }
+        };
+        
         if (!window.tsunamiFrameData || !window.tsunamiFrameData.frames) {
-            return [[], {}, {}, "Loading...", "🔄 UTC", {}];
+            return [[], emptyWaveFig, emptyTimeseriesFig, "Loading...", "🔄 UTC", {}];
         }
         
         const frameData = window.tsunamiFrameData.frames[frame_index.toString()];
         if (!frameData) {
-            return [[], {}, {}, "Frame not found", "🔄 UTC", {}];
+            return [[], emptyWaveFig, emptyTimeseriesFig, "Frame not found", "🔄 UTC", {}];
         }
         
         const stationOrder = window.tsunamiStationOrder;
