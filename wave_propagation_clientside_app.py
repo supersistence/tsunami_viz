@@ -127,7 +127,7 @@ for x in distances:
     initial_wave_fig.add_shape(
         type="line",
         x0=x, x1=x,
-        y0=-0.6, y1=0.4,
+        y0=-2, y1=3,
         line=dict(color="gray", width=1, dash="dash"),
         layer="below"
     )
@@ -139,7 +139,7 @@ initial_wave_fig.update_layout(
     ),
     xaxis_title="Distance from Epicenter (km)",
     yaxis_title="Δ Wave Height (m)",
-    yaxis=dict(range=[-1.5, 3.0], fixedrange=True, zeroline=True, autorange=False),
+    yaxis=dict(range=[-2, 3], fixedrange=True, zeroline=False, autorange=False),
     xaxis=dict(range=[min(distances), max(distances)], fixedrange=True),
     height=400,
     plot_bgcolor="white",
@@ -585,7 +585,7 @@ app.clientside_callback(
                 },
                 yaxis: {
                     title: 'Δ Wave Height (m)',
-                    range: [-0.6, 0.4],  // Match original app's dynamic range
+                    range: [-2, 3],  // Updated to requested range
                     fixedrange: true,
                     zeroline: false,
                     autorange: false
@@ -611,8 +611,8 @@ app.clientside_callback(
                         type: 'line',
                         x0: d,
                         x1: d,
-                        y0: -0.6,
-                        y1: 0.4,
+                        y0: -2,
+                        y1: 3,
                         line: {color: 'gray', width: 1, dash: 'dash'},
                         layer: 'below'
                     }))
@@ -658,8 +658,8 @@ app.clientside_callback(
                 yref: `y${i+1}`,
                 x0: frameData.timestamp,
                 x1: frameData.timestamp,
-                y0: -0.6,
-                y1: 0.4,
+                y0: -1,
+                y1: 1,
                 line: {color: 'blue', width: 2, dash: 'dot'},
                 layer: 'above'
             });
@@ -674,8 +674,8 @@ app.clientside_callback(
                 yref: `y${i+1}`,
                 x0: earthquakeTime,
                 x1: earthquakeTime,
-                y0: -0.6,
-                y1: 0.4,
+                y0: -1,
+                y1: 1,
                 line: {color: 'red', width: 1, dash: 'dash'},
                 layer: 'above'
             });
@@ -713,7 +713,7 @@ app.clientside_callback(
         // Set up individual subplot axes with proper ranges (match original app)
         for (let i = 1; i <= stationOrder.length; i++) {
             const axisConfig = {
-                range: [-0.6, 0.4],  // Match original app's y_range
+                range: [-2, 3],  // Updated to requested range
                 fixedrange: true,
                 zeroline: false,
                 showgrid: true,
