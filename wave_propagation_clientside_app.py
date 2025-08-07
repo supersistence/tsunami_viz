@@ -219,11 +219,22 @@ initial_timeseries_fig.update_layout(
     paper_bgcolor="white"
 )
 
-initial_timeseries_fig.update_xaxes(
-    title_text="Time (UTC)",
-    title_standoff=1,
-    row=len(station_order), col=1
-)
+# Update x-axes - only show labels on bottom subplot
+for i in range(1, len(station_order) + 1):
+    if i == len(station_order):
+        # Bottom subplot - show title and tick labels
+        initial_timeseries_fig.update_xaxes(
+            title_text="Time (UTC)",
+            title_standoff=1,
+            showticklabels=True,
+            row=i, col=1
+        )
+    else:
+        # Other subplots - hide tick labels but keep grid
+        initial_timeseries_fig.update_xaxes(
+            showticklabels=False,
+            row=i, col=1
+        )
 
 # Initialize Dash app
 app = dash.Dash(__name__, title="Wave Watch")
@@ -527,8 +538,8 @@ app.clientside_callback(
                     text: 'Loading Wave Data...',
                     font: {size: 16, color: '#2c3e50'}
                 },
-                xaxis: {title: 'Distance from Epicenter (km)'},
-                yaxis: {title: 'Δ Wave Height (m)', range: [-2, 3]},
+                xaxis: {title: {text: 'Distance from Epicenter (km)'}},
+                yaxis: {title: {text: 'Δ Wave Height (m)'}, range: [-2, 3]},
                 height: 400,
                 plot_bgcolor: 'white',
                 paper_bgcolor: 'white',
@@ -658,12 +669,12 @@ app.clientside_callback(
                     font: {size: 16, color: '#2c3e50'}
                 },
                 xaxis: {
-                    title: 'Distance from Epicenter (km)',
+                    title: {text: 'Distance from Epicenter (km)'},
                     range: [Math.min(...distances), Math.max(...distances)],
                     fixedrange: true
                 },
                 yaxis: {
-                    title: 'Δ Wave Height (m)',
+                    title: {text: 'Δ Wave Height (m)'},
                     range: [-2, 3],  // Updated to requested range
                     fixedrange: true,
                     zeroline: false,
@@ -781,23 +792,7 @@ app.clientside_callback(
                 layer: 'above'
             });
         }
-        
-        // Add earthquake time marker to all subplots
-        const earthquakeTime = '2025-07-29T23:24:52.000Z';
-        for (let i = 0; i < stationOrder.length; i++) {
-            timeseriesShapes.push({
-                type: 'line',
-                xref: `x${i+1}`,
-                yref: `y${i+1}`,
-                x0: earthquakeTime,
-                x1: earthquakeTime,
-                y0: -1,
-                y1: 1,
-                line: {color: 'red', width: 1, dash: 'dash'},
-                layer: 'above'
-            });
-        }
-        
+                
         // Create subplot layout with proper subplot configuration
         const timeseriesFig = {
             data: timeseriesData,
@@ -846,7 +841,8 @@ app.clientside_callback(
                 showgrid: true,
                 gridcolor: '#f0f0f0',
                 title: i === stationOrder.length ? 'Time (UTC)' : '',
-                fixedrange: false
+                fixedrange: false,
+                showticklabels: i === stationOrder.length  // Only show tick labels on bottom subplot
             };
         }
         
