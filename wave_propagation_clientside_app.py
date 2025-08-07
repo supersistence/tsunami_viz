@@ -311,11 +311,12 @@ app.layout = html.Div([
                 dcc.Dropdown(
                     id='speed-dropdown',
                     options=[
-                        {'label': '🐌 Slow', 'value': 50},
-                        {'label': '🚶 Normal', 'value': 20},
-                        {'label': '🏃 Fast', 'value': 10}
+                        {'label': '1 hour/sec', 'value': 16},
+                        {'label': '30 min/sec', 'value': 33},
+                        {'label': '15 min/sec', 'value': 65},
+                        {'label': '1 min/sec', 'value': 980}
                     ],
-                    value=20,
+                    value=65,  # Default to 15 min/sec
                     style={'width': '120px', 'marginLeft': '10px'},
                     clearable=False
                 ),
@@ -474,6 +475,15 @@ app.clientside_callback(
                     // Manually trigger a change event to force Dash to update
                     const event = new Event('change', { bubbles: true });
                     store.dispatchEvent(event);
+                    
+                    // Auto-play after a short delay to ensure charts are rendered
+                    setTimeout(() => {
+                        const playBtn = document.getElementById('play-pause-btn');
+                        if (playBtn) {
+                            console.log('🎬 Auto-starting animation...');
+                            playBtn.click();
+                        }
+                    }, 1500); // 1.5 second delay to ensure visuals are ready
                 }
             })
             .catch(error => {
@@ -871,7 +881,7 @@ app.clientside_callback(
         }
         
         // Format timestamp for display (remove seconds to match original)
-        const timestamp = new Date(frameData.timestamp);
+        const timestamp = new Date(frameData.timestamp + 'Z'); // Ensure UTC interpretation
         let displayTime;
         if (timezoneMode === 'HST') {
             const hstTime = new Date(timestamp.getTime() - (10 * 60 * 60 * 1000)); // UTC-10
