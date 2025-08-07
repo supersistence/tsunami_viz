@@ -626,7 +626,7 @@ app.layout = html.Div([
                 children=[
                     # MapTiler Ocean bathymetry tile layer
                     dl.TileLayer(
-                        url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', 'get_your_own_OpIi9ZULNHzrESv6T2vL')}",
+                        url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', '')}",
                         attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
                         maxZoom=18
                     ),
@@ -844,7 +844,7 @@ def update_all_figures(frame_idx):
     map_children = [
         # MapTiler Ocean bathymetry tile layer
         dl.TileLayer(
-            url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', 'get_your_own_OpIi9ZULNHzrESv6T2vL')}",
+            url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', '')}",
             attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
             maxZoom=18
         ),
