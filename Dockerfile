@@ -30,4 +30,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8050', timeout=5)"
 
 # Run the application with Gunicorn (production WSGI server)
-CMD ["gunicorn", "--bind", "0.0.0.0:8050", "--workers", "1", "--threads", "2", "--timeout", "120", "wave_propagation_dash_app:server"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8050", "--workers", "1", "--threads", "2", "--timeout", "120", "wave_propagation_clientside_app:server"]
