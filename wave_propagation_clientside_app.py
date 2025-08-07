@@ -111,7 +111,9 @@ initial_wave_fig.add_trace(go.Scatter(
     line=dict(color='firebrick', width=3),
     marker=dict(size=10, color='firebrick'),
     name='Wave Δ',
-    showlegend=False
+    showlegend=False,
+    hovertemplate='<b>%{text}</b><br>Distance: %{x:.0f} km<br>Wave Δ: %{y:+.3f} m<extra></extra>',
+    text=station_order
 ))
 
 # Add baseline and station vertical lines
@@ -233,6 +235,13 @@ for i in range(1, len(station_order) + 1):
         # Other subplots - hide tick labels but keep grid
         initial_timeseries_fig.update_xaxes(
             showticklabels=False,
+            row=i, col=1
+        )
+    
+    # Add y-axis label to middle subplot (match client-side behavior)
+    if i == (len(station_order) + 1) // 2:
+        initial_timeseries_fig.update_yaxes(
+            title_text="Δ Wave Height (m)",
             row=i, col=1
         )
 
@@ -382,7 +391,7 @@ app.layout = html.Div([
                         weight=2,
                         fillColor=station_colors[i],
                         fillOpacity=0.7,
-                        children=[dl.Tooltip(f"{station_order[i]}: Loading...")]
+                        children=[dl.Tooltip(f"{station_order[i]}: {station_distances[station_order[i]]:.0f} km from epicenter, Loading...")]
                     ) for i in range(len(station_order))]
                 ]
             ),
@@ -456,6 +465,16 @@ app.clientside_callback(
                 
                 // Trigger a callback update by setting a flag
                 window.tsunamiDataLoaded = true;
+                
+                // Force trigger the main callback by updating the frame-data-store
+                const store = document.getElementById('frame-data-store');
+                if (store) {
+                    store.innerHTML = JSON.stringify({status: 'loaded', frames: Object.keys(data.frames).length, timestamp: Date.now()});
+                    
+                    // Manually trigger a change event to force Dash to update
+                    const event = new Event('change', { bubbles: true });
+                    store.dispatchEvent(event);
+                }
             })
             .catch(error => {
                 console.error('❌ Error loading frame data:', error);
@@ -529,7 +548,7 @@ app.clientside_callback(
 # Main client-side callback to update all visualizations
 app.clientside_callback(
     """
-    function(frame_index, frame_data_json, timezone_clicks) {
+    function(frame_index, timezone_clicks, frame_data_json) {
         // Define proper empty figures to return when data isn't loaded
         const emptyWaveFig = {
             data: [],
@@ -580,7 +599,7 @@ app.clientside_callback(
         // Update map with dynamic station markers
         const stationMarkers = [];
         for (let i = 0; i < frameData.wave_values.length; i++) {
-            const waveDelta = frameData.wave_values[i];
+            const waveDelta = Math.round(frameData.wave_values[i] * 1000) / 1000;  // Round to 3 decimal places
             const waveMagnitude = Math.abs(waveDelta);
             
             // Improved circle sizing
@@ -610,7 +629,7 @@ app.clientside_callback(
                         namespace: 'dash_leaflet',
                         type: 'Tooltip',
                         props: {
-                            children: `${stationOrder[i]}: ${waveDelta >= 0 ? '+' : ''}${waveDelta.toFixed(3)}m wave Δ`
+                            children: `${stationOrder[i]}: ${Math.round(distances[i])} km from epicenter, ${waveDelta >= 0 ? '+' : ''}${waveDelta.toFixed(3)} m wave Δ`
                         }
                     }]
                 }
@@ -642,7 +661,7 @@ app.clientside_callback(
                         namespace: 'dash_leaflet',
                         type: 'Tooltip',
                         props: {
-                            children: '🌋 EARTHQUAKE EPICENTER\\n29 July 2025, 23:24 UTC'
+                            children: '🌋 EARTHQUAKE EPICENTER\\n29 July 2025, 23:24 UTC\\nEpicenter: 0 km'
                         }
                     }]
                 }
@@ -651,14 +670,19 @@ app.clientside_callback(
         ];
         
         // Update wave propagation graph
+        // Round wave values to 3 decimal places for display
+        const roundedWaveValues = frameData.wave_values.map(val => Math.round(val * 1000) / 1000);
+        
         const waveTrace = {
             x: frameData.x_values,
-            y: frameData.wave_values,
+            y: roundedWaveValues,
             type: 'scatter',
             mode: 'lines+markers',
             line: {color: 'firebrick', width: 3},
             marker: {size: 10, color: 'firebrick'},
-            showlegend: false
+            showlegend: false,
+            hovertemplate: '<b>%{text}</b><br>Distance: %{x:.0f} km<br>Wave Δ: %{y:+.3f} m<extra></extra>',
+            text: stationOrder
         };
         
         const waveFig = {
@@ -880,8 +904,8 @@ app.clientside_callback(
      Output("timeline-clock", "children"),
      Output("timezone-toggle", "children"),
      Output("frame-slider", "marks")],
-    [Input("frame-slider", "value"), Input("timezone-toggle", "n_clicks")],
-    [State("frame-data-store", "children")]
+    [Input("frame-slider", "value"), Input("timezone-toggle", "n_clicks"), Input("frame-data-store", "children")],
+    []
 )
 
 # Keyboard controls
