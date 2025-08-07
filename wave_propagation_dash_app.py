@@ -43,9 +43,9 @@ def format_time_display(time, timezone_mode):
     """Format time for display based on timezone mode"""
     if timezone_mode == 'HST':
         hst_time = convert_to_hst(time)
-        return hst_time.strftime('%Y-%m-%d %H:%M:%S HST')
+        return hst_time.strftime('%Y-%m-%d %H:%M HST')
     else:  # UTC
-        return time.strftime('%Y-%m-%d %H:%M:%S UTC')
+        return time.strftime('%Y-%m-%d %H:%M UTC')
 
 def get_percent(t, all_frames):
     """Return percent along timeline for a given timestamp t."""

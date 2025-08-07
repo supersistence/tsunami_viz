@@ -98,9 +98,9 @@ def format_time_display(time, timezone_mode):
     """Format time for display based on timezone mode"""
     if timezone_mode == 'HST':
         hst_time = convert_to_hst(time)
-        return hst_time.strftime('%Y-%m-%d %H:%M:%S HST')
+        return hst_time.strftime('%Y-%m-%d %H:%M HST')
     else:  # UTC
-        return time.strftime('%Y-%m-%d %H:%M:%S UTC')
+        return time.strftime('%Y-%m-%d %H:%M UTC')
 
 # Create initial empty figures - these will be populated by client-side code
 initial_wave_fig = go.Figure()
@@ -127,7 +127,7 @@ for x in distances:
     initial_wave_fig.add_shape(
         type="line",
         x0=x, x1=x,
-        y0=-0.5, y1=0.5,
+        y0=-0.6, y1=0.4,
         line=dict(color="gray", width=1, dash="dash"),
         layer="below"
     )
@@ -139,7 +139,7 @@ initial_wave_fig.update_layout(
     ),
     xaxis_title="Distance from Epicenter (km)",
     yaxis_title="Δ Wave Height (m)",
-    yaxis=dict(range=[-0.5, 0.5], fixedrange=True, zeroline=False, autorange=False),
+    yaxis=dict(range=[-1.5, 3.0], fixedrange=True, zeroline=True, autorange=False),
     xaxis=dict(range=[min(distances), max(distances)], fixedrange=True),
     height=400,
     plot_bgcolor="white",
@@ -393,6 +393,9 @@ app.clientside_callback(
             window.tsunamiDistances = [3262.37, 3728.95, 4815.29, 4963.23, 5084.13, 5200.53, 5275.16];
             window.tsunamiStationColors = ['#636EFA', '#EF553B', '#00CC96', '#C490FD', '#FFA15A', '#1BD3F3', '#FF6692'];
             
+            // Store MapTiler API key for client-side use
+            window.MAPTILER_API_KEY = '""" + os.environ.get('MAPTILER_API_KEY', '') + """';
+            
             console.log(`✅ Loaded ${Object.keys(data.frames).length} frames`);
             console.log('🎯 Frame data structure:', Object.keys(data.frames['0'] || {}));
             
@@ -582,7 +585,7 @@ app.clientside_callback(
                 },
                 yaxis: {
                     title: 'Δ Wave Height (m)',
-                    range: [-0.5, 0.5],
+                    range: [-0.6, 0.4],  // Match original app's dynamic range
                     fixedrange: true,
                     zeroline: false,
                     autorange: false
@@ -608,8 +611,8 @@ app.clientside_callback(
                         type: 'line',
                         x0: d,
                         x1: d,
-                        y0: -0.5,
-                        y1: 0.5,
+                        y0: -0.6,
+                        y1: 0.4,
                         line: {color: 'gray', width: 1, dash: 'dash'},
                         layer: 'below'
                     }))
@@ -617,26 +620,68 @@ app.clientside_callback(
             }
         };
         
-        // Create timeseries figure with current time indicator
+        // Create timeseries figure with actual data traces and current time indicator
         const timeseriesData = [];
         const timeseriesShapes = [];
         
-        // Add time indicator line for each subplot
-        const currentTimestamp = new Date(frameData.timestamp);
+        // Add data traces for each station (full time series)
         for (let i = 0; i < stationOrder.length; i++) {
+            // Extract all timestamps and wave values for this station across all frames
+            const timestamps = [];
+            const waveValues = [];
+            
+            // Get data from all frames for this station
+            Object.keys(window.tsunamiFrameData.frames).forEach(frameIdx => {
+                const frame = window.tsunamiFrameData.frames[frameIdx];
+                if (frame.timestamp && frame.wave_values && frame.wave_values[i] !== undefined) {
+                    timestamps.push(frame.timestamp);
+                    waveValues.push(frame.wave_values[i]);
+                }
+            });
+            
+            timeseriesData.push({
+                x: timestamps,
+                y: waveValues,
+                type: 'scatter',
+                mode: 'lines',
+                name: stationOrder[i],
+                showlegend: false,
+                line: {width: 2, color: stationColors[i]},
+                xaxis: `x${i+1}`,
+                yaxis: `y${i+1}`
+            });
+            
+            // Add current time indicator line for each subplot
             timeseriesShapes.push({
                 type: 'line',
                 xref: `x${i+1}`,
                 yref: `y${i+1}`,
                 x0: frameData.timestamp,
                 x1: frameData.timestamp,
-                y0: -1,
-                y1: 1,
+                y0: -0.6,
+                y1: 0.4,
                 line: {color: 'blue', width: 2, dash: 'dot'},
                 layer: 'above'
             });
         }
         
+        // Add earthquake time marker to all subplots
+        const earthquakeTime = '2025-07-29T23:24:52.000Z';
+        for (let i = 0; i < stationOrder.length; i++) {
+            timeseriesShapes.push({
+                type: 'line',
+                xref: `x${i+1}`,
+                yref: `y${i+1}`,
+                x0: earthquakeTime,
+                x1: earthquakeTime,
+                y0: -0.6,
+                y1: 0.4,
+                line: {color: 'red', width: 1, dash: 'dash'},
+                layer: 'above'
+            });
+        }
+        
+        // Create subplot layout with proper subplot configuration
         const timeseriesFig = {
             data: timeseriesData,
             layout: {
@@ -648,18 +693,54 @@ app.clientside_callback(
                 margin: {t: 50, b: 60, l: 80, r: 20},
                 plot_bgcolor: 'white',
                 paper_bgcolor: 'white',
-                shapes: timeseriesShapes
+                shapes: timeseriesShapes,
+                grid: {rows: stationOrder.length, columns: 1, pattern: 'independent'},
+                // Configure subplot titles and axes
+                annotations: stationOrder.map((station, i) => ({
+                    text: station,
+                    showarrow: false,
+                    x: 0.5,
+                    y: 1 - (i + 0.5) / stationOrder.length,
+                    xref: 'paper',
+                    yref: 'paper',
+                    xanchor: 'center',
+                    yanchor: 'middle',
+                    font: {size: 12, color: '#2c3e50'}
+                }))
             }
         };
         
-        // Format timestamp for display
+        // Set up individual subplot axes with proper ranges (match original app)
+        for (let i = 1; i <= stationOrder.length; i++) {
+            const axisConfig = {
+                range: [-0.6, 0.4],  // Match original app's y_range
+                fixedrange: true,
+                zeroline: false,
+                showgrid: true,
+                gridcolor: '#f0f0f0'
+            };
+            
+            timeseriesFig.layout[`yaxis${i === 1 ? '' : i}`] = {
+                ...axisConfig,
+                title: i === Math.ceil(stationOrder.length / 2) ? 'Δ Wave Height (m)' : ''
+            };
+            
+            timeseriesFig.layout[`xaxis${i === 1 ? '' : i}`] = {
+                showgrid: true,
+                gridcolor: '#f0f0f0',
+                title: i === stationOrder.length ? 'Time (UTC)' : '',
+                fixedrange: false
+            };
+        }
+        
+        // Format timestamp for display (remove seconds to match original)
         const timestamp = new Date(frameData.timestamp);
         let displayTime;
         if (timezoneMode === 'HST') {
             const hstTime = new Date(timestamp.getTime() - (10 * 60 * 60 * 1000)); // UTC-10
-            displayTime = hstTime.toISOString().slice(0, 19).replace('T', ' ') + ' HST';
+            displayTime = hstTime.toISOString().slice(0, 16).replace('T', ' ') + ' HST';
         } else {
-            displayTime = timestamp.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+            displayTime = timestamp.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
         }
         
         // Create slider marks
