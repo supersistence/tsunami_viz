@@ -132,6 +132,45 @@ for x in distances:
         layer="below"
     )
 
+# Add station annotations to initial figure  
+station_annotations = []
+for i, x in enumerate(distances):
+    # Calculate positions to avoid overlap (match original app logic)
+    base_y = 1.05
+    offset = 0.06
+    
+    # Custom level mapping based on station names
+    station_name = station_order[i]
+    if station_name in ['Midway', 'Wake Island', 'Nawiliwili', 'Kahului', 'Hilo']:
+        level = 0  # Same height as Midway
+    elif station_name in ['Honolulu', 'Kawaihae']:
+        level = 1  # Middle height
+    else:
+        level = 0  # Default to level 0
+    
+    y_pos = base_y + (offset * level)
+    
+    station_annotations.append(dict(
+        x=x,
+        y=y_pos,
+        yref="paper",
+        text=station_order[i],
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=0.8,
+        arrowwidth=1,
+        arrowcolor="darkgray",
+        ax=0,
+        ay=-15 - (5 * level),  # Variable arrow lengths based on level
+        yanchor="bottom",
+        textangle=0,
+        font=dict(size=9, color="black", family="Arial", weight="bold"),
+        bgcolor="rgba(255,255,255,0.95)",
+        bordercolor="darkgray",
+        borderwidth=1,
+        borderpad=2
+    ))
+
 initial_wave_fig.update_layout(
     title=dict(
         text="Wave Amplitude vs Distance from Epicenter",
@@ -145,7 +184,8 @@ initial_wave_fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
     margin=dict(t=120, b=40, l=60, r=20),
-    showlegend=False
+    showlegend=False,
+    annotations=station_annotations
 )
 
 # Create initial timeseries figure
@@ -655,7 +695,45 @@ app.clientside_callback(
                         line: {color: 'gray', width: 1, dash: 'dash'},
                         layer: 'below'
                     }))
-                ]
+                ],
+                annotations: stationOrder.map((station, i) => {
+                    // Smart positioning to prevent overlap (match original app logic)
+                    const baseY = 1.05;
+                    const offset = 0.06;
+                    
+                    // Custom level mapping based on station names
+                    let level = 0;
+                    if (['Midway', 'Wake Island', 'Nawiliwili', 'Kahului', 'Hilo'].includes(station)) {
+                        level = 0;  // Same height as Midway
+                    } else if (['Honolulu', 'Kawaihae'].includes(station)) {
+                        level = 1;  // Middle height
+                    } else {
+                        level = 0;  // Default to level 0
+                    }
+                    
+                    const yPos = baseY + (offset * level);
+                    
+                    return {
+                        x: distances[i],
+                        y: yPos,
+                        yref: 'paper',
+                        text: station,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 0.8,
+                        arrowwidth: 1,
+                        arrowcolor: 'darkgray',
+                        ax: 0,
+                        ay: -15 - (5 * level),  // Variable arrow lengths based on level
+                        yanchor: 'bottom',
+                        textangle: 0,
+                        font: {size: 9, color: 'black', family: 'Arial, sans-serif'},
+                        bgcolor: 'rgba(255,255,255,0.95)',
+                        bordercolor: 'darkgray',
+                        borderwidth: 1,
+                        borderpad: 2
+                    };
+                })
             }
         };
         
