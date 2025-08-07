@@ -1,44 +1,20 @@
-# 🌊 Tsunami Visualization - Deployment Guide
+# 🌊 Tsunami Visualization - Production Deployment
 
-This guide explains how to deploy the tsunami visualization app as a live website.
+Professional deployment guide for the tsunami visualization app using Docker and DigitalOcean.
 
-## 🚀 Quick Deployment Options
+## 🏆 Production Setup: DigitalOcean Droplet
 
-### 1. Render (Recommended)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+**Host multiple apps (tsunami-viz, soil-health, food-price, etc.) on one server for $6/month total.**
 
-1. Fork this repository on GitHub
-2. Connect your GitHub account to [Render](https://render.com)
-3. Create a new Web Service
-4. Connect your forked repository
-5. Render will automatically detect `render.yaml` and deploy
+✨ **Features:**
+- 🐳 Docker containerization
+- 🌐 Nginx reverse proxy  
+- 🔒 Free SSL certificates (Let's Encrypt)
+- 📊 Multiple apps on one server
+- 🚀 Professional architecture
+- 💰 Cost-effective scaling
 
-**Features:**
-- ✅ Free tier available (750 hours/month)
-- ✅ Automatic deployments from GitHub
-- ✅ Custom domains
-- ✅ SSL certificates included
-
-### 2. Railway
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/deploy)
-
-1. Click the deploy button above
-2. Connect your GitHub account
-3. Fork and deploy
-
-### 3. Heroku
-```bash
-# Install Heroku CLI, then:
-heroku create your-tsunami-viz-app
-git push heroku main
-heroku open
-```
-
-### 4. DigitalOcean App Platform
-1. Create account on [DigitalOcean](https://cloud.digitalocean.com/apps)
-2. Create new App
-3. Connect GitHub repository
-4. Deploy
+👉 **[Follow the complete setup guide →](DO_SETUP.md)**
 
 ## 🔧 Environment Variables
 
@@ -92,9 +68,23 @@ python wave_propagation_dash_app.py
 
 Access at: http://localhost:8050
 
+## 🧪 Local Testing
+
+Test the Docker setup locally before deploying:
+
+```bash
+# Quick local test
+./local_test.sh
+
+# Manual Docker commands
+docker build -t tsunami-viz .
+docker run -p 8050:8050 -v ./data:/app/data:ro tsunami-viz
+```
+
 ## 📞 Support
 
 For deployment issues:
-- Check platform-specific documentation
+- See detailed troubleshooting in `DO_SETUP.md`
 - Verify all dependencies in `requirements.txt`
-- Ensure data files are included in repository 
+- Ensure data files are included in repository
+- Check Docker logs: `docker-compose logs tsunami-viz`

@@ -1,8 +1,6 @@
 import dash
-from dash import dcc, html, Input, Output, State, clientside_callback, ClientsideFunction
-from dash.exceptions import PreventUpdate
+from dash import dcc, html
 import plotly.graph_objects as go
-import plotly.subplots as sp
 import pandas as pd
 import pickle
 import dash_leaflet as dl
@@ -140,53 +138,23 @@ y_range = [float(np.nanmin(all_y[np.isfinite(all_y)])) - 0.1, float(np.nanmax(al
 for i in range(min(3, len(df_pivot_interp))):
     print(f'DEBUG: frame {i} y:', df_pivot_interp.iloc[i].values.tolist())
 
-# ⚡ OPTIMIZATION #2: Load pre-calculated frame data cache
-print("⚡ Loading pre-calculated frame data cache...")
-cache_load_start = time.time()
+# ⚡ OPTIMIZATION #2: Pre-calculate all frame data to eliminate DataFrame lookups
+print("⚡ Pre-calculating frame data for performance optimization...")
+precalc_start = time.time()
 
-try:
-    with open("data/frame_data_cache.pkl", "rb") as f:
-        frame_data_cache = pickle.load(f)
-    
-    cache_load_time = time.time() - cache_load_start
-    total_shapes = len(frame_data_cache) * len(station_order)
-    print(f"✅ Cache loaded: {cache_load_time:.3f}s ({len(frame_data_cache)} frames)")
-    print(f"⚡ Instant access to {total_shapes:,} pre-calculated shapes")
-    
-except FileNotFoundError:
-    print("❌ Cache file not found! Run 'python generate_frame_cache.py' first")
-    print("⚠️  Falling back to live calculation...")
-    
-    # Fallback to live calculation
-    frame_data_cache = {}
-    for i in range(len(df_pivot_interp)):
-        x_values = [float(d) for d in distances]
-        wave_values = df_pivot_interp.iloc[i].values.tolist()
-        timestamp = all_frames[i]
-        
-        timeseries_shapes = []
-        for j in range(len(station_order)):
-            timeseries_shapes.append({
-                "type": "line",
-                "xref": f"x{j+1}",
-                "yref": f"y{j+1}",
-                "x0": timestamp,
-                "x1": timestamp,
-                "y0": -1,
-                "y1": 1,
-                "line": {"color": "blue", "width": 2, "dash": "dot"},
-                "layer": "above"
-            })
-        
-        frame_data_cache[i] = {
-            'x_values': x_values,
-            'wave_values': wave_values,
-            'timestamp': timestamp,
-            'timeseries_shapes': timeseries_shapes
-        }
-    
-    fallback_time = time.time() - cache_load_start
-    print(f"⚡ Fallback calculation: {fallback_time:.3f}s")
+# Pre-calculate wave values for all frames
+frame_data_cache = {}
+for i, t in enumerate(all_frames):
+    frame_y = df_pivot_interp.iloc[i].values.tolist()
+    frame_data_cache[i] = {
+        'timestamp': t,
+        'wave_values': frame_y,
+        'x_values': [float(d) for d in distances]  # Pre-calculate x values too
+    }
+
+precalc_time = time.time() - precalc_start
+print(f"⚡ Frame data pre-calculation: {precalc_time:.3f}s ({len(frame_data_cache)} frames)")
+print(f"⚡ Memory usage: ~{len(frame_data_cache) * len(station_order) * 8 / 1024:.1f}KB for wave data")
 
 # Build go.Figure with animation
 figure_build_start = time.time()
@@ -317,32 +285,9 @@ print(f"⏱️ Figure building: {figure_build_time:.3f}s")
 
 
 # Dash app layout
-app = dash.Dash(__name__, title="Wave Watch")
-
-# Add custom favicon using wave emoji
-app.index_string = '''
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Wave Watch</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
-        {%favicon%}
-        {%css%}
-    </head>
-    <body>
-        {%app_entry%}
-        <footer>
-            {%config%}
-            {%scripts%}
-            {%renderer%}
-        </footer>
-    </body>
-</html>
-'''
+app = dash.Dash(__name__)
 from dash import dash_table
+import plotly.subplots as sp
 
 # Prepare table data: show last 10 time steps
 preview_rows = 10
@@ -527,6 +472,8 @@ for i in range(len(initial_wave_values)):
 # OLD PLOTLY MAP CODE REMOVED - NOW USING DASH LEAFLET BATHYMETRY MAP
 
 # --- Dash Layout with Map ---
+from dash.dependencies import Input, Output, State
+from dash import clientside_callback, ClientsideFunction
 
 # Unified animation controls are handled through the main dashboard interface
 
@@ -558,18 +505,16 @@ app.layout = html.Div([
                            style={'padding': '12px 24px', 'fontSize': '16px', 'fontWeight': 'bold', 
                                  'backgroundColor': '#27ae60', 'color': 'white', 'border': 'none', 
                                  'borderRadius': '8px', 'cursor': 'pointer', 'marginRight': '20px',
-                                 'boxShadow': '0 3px 6px rgba(0,0,0,0.2)', 'transition': 'all 0.3s'},
-                           title="Click to start/stop animation"),
-
+                                 'boxShadow': '0 3px 6px rgba(0,0,0,0.2)', 'transition': 'all 0.3s'}),
                 html.Span("Speed: ", style={'fontSize': '16px', 'fontWeight': 'bold', 'color': '#2c3e50', 'marginRight': '10px'}),
                 dcc.Dropdown(
                     id='speed-dropdown',
                     options=[
-                        {'label': '🐌 Slow', 'value': 50},
-                        {'label': '🚶 Normal', 'value': 20},
-                        {'label': '🏃 Fast', 'value': 10}
+                        {'label': '🐌 Slow', 'value': 200},
+                        {'label': '🚶 Normal', 'value': 100},
+                        {'label': '🏃 Fast', 'value': 50}
                     ],
-                    value=20,
+                    value=100,
                     style={'width': '120px', 'marginLeft': '10px'},
                     clearable=False
                 ),
@@ -626,7 +571,7 @@ app.layout = html.Div([
                 children=[
                     # MapTiler Ocean bathymetry tile layer
                     dl.TileLayer(
-                        url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', 'get_your_own_OpIi9ZULNHzrESv6T2vL')}",
+                        url="https://api.maptiler.com/maps/ocean/256/{z}/{x}/{y}.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
                         attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
                         maxZoom=18
                     ),
@@ -680,7 +625,7 @@ app.layout = html.Div([
         ], style={'margin': '0', 'color': '#95a5a6', 'fontSize': '0.9rem', 'textAlign': 'center'})
     ], style={'marginTop': '30px', 'padding': '15px', 'background': '#ecf0f1', 'borderRadius': '8px'}),
     
-            dcc.Interval(id="interval", interval=10, n_intervals=0, disabled=True)
+    dcc.Interval(id="interval", interval=50, n_intervals=0, disabled=True)
 ], style={'maxWidth': '1400px', 'margin': '0 auto', 'padding': '20px', 'fontFamily': 'Arial, sans-serif', 'backgroundColor': '#f8f9fa'})
 
 # Calculate and display total startup time
@@ -711,8 +656,9 @@ def toggle_play_pause(n_clicks, speed_value, interval_disabled):
         'boxShadow': '0 3px 6px rgba(0,0,0,0.2)', 'transition': 'all 0.3s'
     }
     
-    # Initial state - stopped
+    # Toggle between play and pause states
     if n_clicks is None or n_clicks == 0:
+        # Initial state - stopped
         return True, speed_value, "▶️ Play", play_style
     
     # Toggle state
@@ -726,18 +672,16 @@ def toggle_play_pause(n_clicks, speed_value, interval_disabled):
 @app.callback(
     Output("frame-slider", "value"),
     [Input("interval", "n_intervals")],
-    [State("frame-slider", "value")],
-    prevent_initial_call=True
+    [State("frame-slider", "value")]
 )
 def advance_frame(n_intervals, slider_val):
     if slider_val is None:
-        slider_val = 0
+        return 0
     
     # Advance by 1 frame (original behavior - no frame skipping)
     next_val = slider_val + 1
     if next_val >= len(all_frames):
-        next_val = 0  # loop back to start
-    
+        return 0  # loop back to start
     return next_val
 
 @app.callback(
@@ -771,25 +715,17 @@ def update_slider_marks(timezone_clicks):
 
 @app.callback(
     [Output("bathymetry-map", "children"), Output("wave-graph", "figure"), Output("timeseries-graph", "figure")],
-    [Input("frame-slider", "value")]
+    [Input("frame-slider", "value")],
+    prevent_initial_call=True
 )
 def update_all_figures(frame_idx):
     callback_start_time = time.time()
     
-    # Original simple approach: direct DataFrame lookup
-    if frame_idx >= len(all_frames):
-        frame_idx = len(all_frames) - 1
-    
-    # ⚡ OPTIMIZATION #2: Get pre-calculated frame data
-    try:
-        frame_data = frame_data_cache[frame_idx]
-        frame_x = frame_data['x_values'] 
-        frame_y = frame_data['wave_values']
-        t = frame_data['timestamp']
-        print(f"✅ Frame {frame_idx}: {len(frame_x)} data points, timestamp: {t}")
-    except KeyError as e:
-        print(f"❌ Frame {frame_idx} not found in cache! Error: {e}")
-        return dash.no_update, dash.no_update, dash.no_update
+    # ⚡ OPTIMIZATION #2: Use pre-calculated frame data instead of DataFrame lookup
+    frame_data = frame_data_cache[frame_idx]
+    t = frame_data['timestamp']
+    frame_y = frame_data['wave_values']
+    frame_x = frame_data['x_values']
     
     # Create updated station markers
     station_markers = []
@@ -844,7 +780,7 @@ def update_all_figures(frame_idx):
     map_children = [
         # MapTiler Ocean bathymetry tile layer
         dl.TileLayer(
-            url=f"https://api.maptiler.com/maps/ocean/256/{{z}}/{{x}}/{{y}}.png?key={os.environ.get('MAPTILER_API_KEY', 'get_your_own_OpIi9ZULNHzrESv6T2vL')}",
+            url="https://api.maptiler.com/maps/ocean/256/{z}/{x}/{y}.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
             attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
             maxZoom=18
         ),
@@ -853,22 +789,49 @@ def update_all_figures(frame_idx):
         # Updated station markers with Plotly colors
         *station_markers
     ]
-    # --- Update oscilloscope --- ⚡ Ultra-fast: direct data update
-    fig_c = {'data': [{'x': frame_x, 'y': frame_y, 'type': 'scatter', 'mode': 'lines+markers', 
-                       'line': {'color': 'firebrick', 'width': 3}, 'marker': {'size': 10, 'color': 'firebrick'}}],
-             'layout': fig.layout}
-    
-    # --- Update time series with vertical line --- ⚡ Ultra-fast: direct shapes update
+    # --- Update oscilloscope --- ⚡ Using pre-calculated data
+    fig_c = fig.to_dict()
+    fig_c['data'][0]['x'] = frame_x
+    fig_c['data'][0]['y'] = frame_y
+    # --- Update time series with vertical line ---
     fig_ts = station_timeseries_fig.to_dict()
-    fig_ts['layout']['shapes'] = frame_data['timeseries_shapes']
+    shapes = []
+    
+    # Add earthquake marker (static)
+    for i in range(len(station_order)):
+        shapes.append({
+            "type": "line",
+            "xref": f"x{i+1}",
+            "yref": f"y{i+1}",
+            "x0": earthquake_time,
+            "x1": earthquake_time,
+            "y0": y_range[0],
+            "y1": y_range[1],
+            "line": {"color": "red", "width": 3, "dash": "dash"},
+            "layer": "above"
+        })
+    
+    # Add current time marker (animated)
+    for i in range(len(station_order)):
+        shapes.append({
+            "type": "line",
+            "xref": f"x{i+1}",
+            "yref": f"y{i+1}",
+            "x0": t,
+            "x1": t,
+            "y0": y_range[0],
+            "y1": y_range[1],
+            "line": {"color": "blue", "width": 2, "dash": "dot"},
+            "layer": "above"
+        })
+    fig_ts["layout"]["shapes"] = shapes
     
     callback_time = time.time() - callback_start_time
     print(f"⏱️ Callback execution: {callback_time:.3f}s (frame {frame_idx})")
-    print(f"🔄 Updating: Map ({len(map_children)} children), Wave graph ({len(fig_c['data'])} traces), Timeseries ({len(fig_ts['layout']['shapes'])} shapes)")
     
     return map_children, fig_c, fig_ts
 
-# Add clientside callback for keyboard controls (simplified - no slider conflicts)
+# Add clientside callback for keyboard controls
 app.clientside_callback(
     """
     function(id) {
@@ -878,8 +841,23 @@ app.clientside_callback(
                 event.preventDefault();
                 // Toggle play/pause (trigger button clicks)
                 document.getElementById('play-pause-btn').click();
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                // Manual step forward
+                var slider = document.getElementById('frame-slider');
+                var currentVal = parseInt(slider.value) || 0;
+                var maxVal = parseInt(slider.max) || 0;
+                slider.value = currentVal < maxVal ? currentVal + 1 : 0;
+                slider.dispatchEvent(new Event('change'));
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                // Manual step backward
+                var slider = document.getElementById('frame-slider');
+                var currentVal = parseInt(slider.value) || 0;
+                var maxVal = parseInt(slider.max) || 0;
+                slider.value = currentVal > 0 ? currentVal - 1 : maxVal;
+                slider.dispatchEvent(new Event('change'));
             }
-            // Note: Arrow key slider controls removed to prevent conflicts with server-side callbacks
         });
         return '';
     }
@@ -887,11 +865,6 @@ app.clientside_callback(
     Output('keyboard-listener', 'children'),
     Input('keyboard-listener', 'id')
 )
-
-
-
-# Expose the Flask server for Gunicorn
-server = app.server
 
 if __name__ == '__main__':
     import os
@@ -904,16 +877,9 @@ if __name__ == '__main__':
     
     print(f"🚀 Starting Tsunami Visualization App on port {port}")
     print(f"🌊 Debug mode: {debug_mode}")
-    print(f"📋 CALLBACKS REGISTERED: {len(app.callback_map)} total callbacks")
-    print("🎮 Play/pause callback should be registered!")
     
-    if os.environ.get('USE_GUNICORN', 'False').lower() == 'true':
-        print("🏭 Production mode: Using Gunicorn WSGI server")
-        # Gunicorn will handle the server startup
-    else:
-        print("🔧 Development mode: Using Flask development server")
-        app.run(
-            debug=debug_mode,
-            host='0.0.0.0',  # Allow external connections
-            port=port
-        )
+    app.run(
+        debug=debug_mode,
+        host='0.0.0.0',  # Allow external connections
+        port=port
+    )

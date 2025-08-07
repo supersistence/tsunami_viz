@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - tsunami-viz
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  tsunami-viz:
+    build: .
+    environment:
+      - PORT=8050
+      - DEBUG=False
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8050', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Template for adding more apps
+  # soil-health:
+  #   build: ../soil-health-tool
+  #   environment:
+  #     - PORT=8051
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
+  
+  # food-price-index:
+  #   build: ../food-price-index  
+  #   environment:
+  #     - PORT=8052
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
