@@ -24,7 +24,10 @@ cat ~/.ssh/id_rsa
 
 **Copy the entire output** (including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines).
 
-⚠️ **Important**: This is your private key - keep it secret! Only paste it into GitHub Secrets, never commit it to your repository.
+⚠️ **Important**: 
+- This is your private key - keep it secret! Only paste it into GitHub Secrets, never commit it to your repository.
+- When pasting into GitHub Secrets, make sure there are NO extra spaces or blank lines at the beginning or end
+- The key should start exactly with `-----BEGIN` and end exactly with `-----END`
 
 ## Step 2: Add Secrets to GitHub
 
