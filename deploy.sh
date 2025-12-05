@@ -2,9 +2,14 @@
 set -e
 
 # Configuration
-DROPLET_IP="143.110.144.44"
-DOMAIN="tsunami.supersistence.org"
-APP_NAME="tsunami-viz"
+# Load from environment variable or .env file if it exists
+if [ -f .env.deploy ]; then
+    source .env.deploy
+fi
+
+DROPLET_IP="${DROPLET_IP:-143.110.144.44}"
+DOMAIN="${DOMAIN:-tsunami.supersistence.org}"
+APP_NAME="${APP_NAME:-tsunami-viz}"
 
 echo "🚀 Deploying $APP_NAME to DigitalOcean Droplet..."
 

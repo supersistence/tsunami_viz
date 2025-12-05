@@ -13,6 +13,14 @@ ENV/
 # Environment variables
 .env
 .env.*
+.env.deploy
+
+# SSH keys (never commit these!)
+*.pem
+id_*
+*_rsa
+*_ed25519
+*_do
 
 # OS files
 .DS_Store

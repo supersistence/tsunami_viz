@@ -1,0 +1,67 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy files to server
+        run: |
+          rsync -avz --exclude='.git' --exclude='venv' --exclude='__pycache__' \
+            --exclude='*.pyc' --exclude='.pytest_cache' \
+            ./ root@${{ secrets.DROPLET_IP }}:/opt/tsunami-viz/
+
+      - name: Deploy on server
+        run: |
+          ssh root@${{ secrets.DROPLET_IP }} << 'EOF'
+          set -e
+          cd /opt/tsunami-viz
+          
+          echo "🛑 Stopping existing services..."
+          docker-compose down || true
+          
+          echo "🔨 Building and starting services..."
+          docker-compose up -d --build
+          
+          echo "⏱️ Waiting for services to be ready..."
+          sleep 10
+          
+          echo "🔍 Checking service health..."
+          docker-compose ps
+          docker-compose logs --tail=20 tsunami-viz
+          
+          echo "🧪 Testing application..."
+          if curl -f http://localhost:8050 > /dev/null 2>&1; then
+            echo "✅ Application is responding locally"
+          else
+            echo "❌ Application is not responding locally"
+            docker-compose logs tsunami-viz
+            exit 1
+          fi
+          EOF
+
+      - name: Deployment complete
+        run: |
+          echo "✅ Deployment complete!"
+          echo "🌐 Your app should be available at:"
+          echo "   https://tsunami.supersistence.org"
+
