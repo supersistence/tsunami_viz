@@ -6,7 +6,7 @@ An interactive scientific visualization tool for exploring tsunami wave propagat
 
 ## ✨ Features
 
-### 🎬 Interactive Visualization
+### 🎬 Interactive Visualizations
 - **Real-time Animation**: Smooth playback of tsunami wave propagation over 24+ hours
 - **Wave Propagation Graph**: Oscilloscope-style visualization showing wave amplitude vs distance from epicenter  
 - **Station Time Series**: Individual wave height anomaly plots for each monitoring station
