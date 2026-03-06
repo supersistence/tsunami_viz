@@ -29,6 +29,6 @@ Push to `main` and check the **Actions** tab for the "Deploy to Linode" workflow
 
 ## Troubleshooting
 
-- Verify SSH works locally: `ssh -i ~/.ssh/id_ed25519 root@172.236.244.235`
+- Verify SSH works locally: `ssh -i ~/.ssh/id_ed25519 deploy@172.236.244.235`
 - Check the Actions tab for error messages
 - Ensure the full key is pasted (including BEGIN/END lines, no extra whitespace)

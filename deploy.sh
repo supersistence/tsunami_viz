@@ -37,11 +37,11 @@ fi
 echo "Copying files to server..."
 rsync -avz --exclude='.git' --exclude='venv' --exclude='__pycache__' \
     --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.env' --exclude='.env.*' \
-    ./ root@$SERVER_IP:/opt/$APP_NAME/
+    ./ deploy@$SERVER_IP:/opt/$APP_NAME/
 
 # Deploy on server
 echo "Deploying on server..."
-ssh root@$SERVER_IP << EOF
+ssh deploy@$SERVER_IP << EOF
 set -e
 cd /opt/$APP_NAME
 
@@ -73,4 +73,4 @@ echo "Your app should be available at:"
 echo "   https://$DOMAIN"
 echo ""
 echo "To check logs:"
-echo "   ssh root@$SERVER_IP 'cd /opt/$APP_NAME && docker compose logs -f'"
+echo "   ssh deploy@$SERVER_IP 'cd /opt/$APP_NAME && docker compose logs -f'"

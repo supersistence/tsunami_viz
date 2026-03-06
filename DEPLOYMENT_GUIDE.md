@@ -6,7 +6,7 @@ Complete guide for deploying the Tsunami Visualization app to production.
 
 1. **SSH Access**: SSH access to the Linode server
    - IP: `172.236.244.235`
-   - User: `root`
+   - User: `deploy`
    - SSH key: `~/.ssh/id_ed25519`
 
 2. **Local Requirements**:
@@ -61,10 +61,10 @@ This will:
 
 ```bash
 # Check services
-ssh root@172.236.244.235 'cd /opt/tsunami-viz && docker compose ps'
+ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose ps'
 
 # Check logs
-ssh root@172.236.244.235 'cd /opt/tsunami-viz && docker compose logs --tail=50 tsunami-viz'
+ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose logs --tail=50 tsunami-viz'
 
 # Test HTTPS
 curl -I https://tsunami.supersistence.org
@@ -74,17 +74,17 @@ curl -I https://tsunami.supersistence.org
 
 ### View Logs
 ```bash
-ssh root@172.236.244.235 'cd /opt/tsunami-viz && docker compose logs -f tsunami-viz'
+ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose logs -f tsunami-viz'
 ```
 
 ### Restart
 ```bash
-ssh root@172.236.244.235 'cd /opt/tsunami-viz && docker compose restart'
+ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose restart'
 ```
 
 ### Stop
 ```bash
-ssh root@172.236.244.235 'cd /opt/tsunami-viz && docker compose down'
+ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose down'
 ```
 
 ## SSL Certificate Renewal
@@ -97,7 +97,7 @@ Certificates auto-renew via certbot. To manually renew:
 
 Or directly on the server:
 ```bash
-ssh root@172.236.244.235 'certbot renew --nginx'
+ssh deploy@172.236.244.235 'certbot renew --nginx'
 ```
 
 ## CI/CD (GitHub Actions)
