@@ -36,7 +36,7 @@ fi
 # Copy files to server
 echo "Copying files to server..."
 rsync -avz --exclude='.git' --exclude='venv' --exclude='__pycache__' \
-    --exclude='*.pyc' --exclude='.pytest_cache' \
+    --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.env' --exclude='.env.*' \
     ./ root@$SERVER_IP:/opt/$APP_NAME/
 
 # Deploy on server

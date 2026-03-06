@@ -28,7 +28,7 @@ jobs:
         run: |
           rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
             --exclude='.git' --exclude='venv' --exclude='__pycache__' \
-            --exclude='*.pyc' --exclude='.pytest_cache' \
+            --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.env' --exclude='.env.*' \
             ./ root@${{ secrets.SERVER_IP }}:/opt/tsunami-viz/
 
       - name: Deploy on server
