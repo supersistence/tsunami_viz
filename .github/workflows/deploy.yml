@@ -1,16 +1,16 @@
-name: Deploy to DigitalOcean
+name: Deploy to Linode
 
 on:
   push:
     branches:
       - main
       - master
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DROPLET_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/deploy_key
 
@@ -29,48 +29,40 @@ jobs:
           rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
             --exclude='.git' --exclude='venv' --exclude='__pycache__' \
             --exclude='*.pyc' --exclude='.pytest_cache' \
-            ./ root@${{ secrets.DROPLET_IP }}:/opt/tsunami-viz/
+            ./ root@${{ secrets.SERVER_IP }}:/opt/tsunami-viz/
 
       - name: Deploy on server
         run: |
-          ssh -i ~/.ssh/deploy_key root@${{ secrets.DROPLET_IP }} << 'EOF'
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SERVER_IP }} << 'EOF'
           set -e
           cd /opt/tsunami-viz
-          
-          echo "🛑 Stopping existing services..."
-          docker-compose down || true
-          
-          echo "🔨 Building and starting services..."
-          docker-compose up -d --build
-          
-          echo "⏱️ Waiting for services to be ready..."
+
+          echo "Stopping existing services..."
+          docker compose down || true
+
+          echo "Building and starting services..."
+          docker compose up -d --build
+
+          echo "Waiting for services to be ready..."
           sleep 15
-          
-          echo "🔍 Checking service health..."
-          docker-compose ps
-          
-          echo "📋 Application logs:"
-          docker-compose logs --tail=30 tsunami-viz
-          
-          echo "🧪 Testing application..."
-          # Wait a bit more for the app to fully start
+
+          echo "Checking service health..."
+          docker compose ps
+          docker compose logs --tail=30 tsunami-viz
+
+          echo "Testing application..."
           sleep 5
-          
-          # Test from within the docker network
-          if docker-compose exec -T tsunami-viz python -c "import requests; requests.get('http://localhost:8050', timeout=10)" > /dev/null 2>&1; then
-            echo "✅ Application is responding"
-          elif curl -f --max-time 10 http://localhost:8050 > /dev/null 2>&1; then
-            echo "✅ Application is responding (via localhost)"
+
+          if curl -f --max-time 10 http://127.0.0.1:8051 > /dev/null 2>&1; then
+            echo "Application is responding"
           else
-            echo "⚠️  Health check failed, but containers are running"
-            echo "Checking container status..."
-            docker-compose ps
-            # Don't fail if containers are up and healthy
-            if docker-compose ps | grep -q "Up (healthy)"; then
-              echo "✅ Containers are healthy, deployment successful"
+            echo "Health check warning, checking container status..."
+            docker compose ps
+            if docker compose ps | grep -q "healthy"; then
+              echo "Container is healthy, deployment successful"
             else
-              echo "❌ Containers are not healthy"
-              docker-compose logs --tail=50 tsunami-viz
+              echo "Container is not healthy"
+              docker compose logs --tail=50 tsunami-viz
               exit 1
             fi
           fi
@@ -78,7 +70,5 @@ jobs:
 
       - name: Deployment complete
         run: |
-          echo "✅ Deployment complete!"
-          echo "🌐 Your app should be available at:"
-          echo "   https://tsunami.supersistence.org"
-
+          echo "Deployment complete!"
+          echo "https://tsunami.supersistence.org"

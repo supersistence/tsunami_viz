@@ -1,90 +1,40 @@
-# 🌊 Tsunami Visualization - Production Deployment
+# Tsunami Visualization - Production Deployment
 
-Professional deployment guide for the tsunami visualization app using Docker and DigitalOcean.
+The app runs on a shared Linode server alongside other projects (soil-health, food-price-index, port-commerce).
 
-## 🏆 Production Setup: DigitalOcean Droplet
+## Architecture
 
-**Host multiple apps (tsunami-viz, soil-health, food-price, etc.) on one server for $6/month total.**
+- Host-level Nginx handles SSL and reverse proxying for all apps
+- Each app runs in its own Docker container (or systemd service)
+- Certbot manages SSL certificates with auto-renewal
 
-✨ **Features:**
-- 🐳 Docker containerization
-- 🌐 Nginx reverse proxy  
-- 🔒 Free SSL certificates (Let's Encrypt)
-- 📊 Multiple apps on one server
-- 🚀 Professional architecture
-- 💰 Cost-effective scaling
-
-👉 **[Follow the complete setup guide →](DO_SETUP.md)**
-
-## 🔧 Environment Variables
-
-Set these for production deployment:
+## Deployment
 
 ```bash
-DEBUG=False           # Disable debug mode
-PORT=8050            # Port (usually auto-set by platform)
+./deploy.sh
 ```
 
-## 📊 Data Considerations
+Or push to `main` for automatic deployment via GitHub Actions.
 
-**Current Setup:**
-- Uses pre-cached pickle files (`data/*.pkl`)
-- Station metadata from NOAA API
-- No real-time data fetching
-
-**For Live Data:**
-- Uncomment data fetching code in `wave_data_collect_and_cache.py`
-- Set up scheduled jobs to update data
-- Consider database storage for better performance
-
-## 🌐 Custom Domain
-
-Most platforms support custom domains:
-
-**Render:** Settings → Custom Domains → Add Domain
-**Railway:** Settings → Domains → Custom Domain  
-**Heroku:** Settings → Domains → Add Domain
-
-## 📈 Scaling Considerations
-
-- **Memory:** ~500MB for current dataset
-- **CPU:** Moderate for real-time updates
-- **Storage:** <100MB for cached data
-- **Bandwidth:** ~10MB per user session
-
-## 🔒 Security Notes
-
-- API keys should be environment variables
-- Enable HTTPS (included on most platforms)
-- Consider rate limiting for public access
-
-## 🛠 Local Development
+## Environment Variables
 
 ```bash
-export DEBUG=True
-export PORT=8050
-python wave_propagation_dash_app.py
+DEBUG=False
+PORT=8050
+MAPTILER_API_KEY=<your-key>
 ```
 
-Access at: http://localhost:8050
-
-## 🧪 Local Testing
-
-Test the Docker setup locally before deploying:
+## Local Development
 
 ```bash
-# Quick local test
-./local_test.sh
-
-# Manual Docker commands
-docker build -t tsunami-viz .
-docker run -p 8050:8050 -v ./data:/app/data:ro tsunami-viz
+python wave_propagation_clientside_app.py
+# Open http://localhost:8050
 ```
 
-## 📞 Support
+## Local Docker Testing
 
-For deployment issues:
-- See detailed troubleshooting in `DO_SETUP.md`
-- Verify all dependencies in `requirements.txt`
-- Ensure data files are included in repository
-- Check Docker logs: `docker-compose logs tsunami-viz`
+```bash
+./deployment/local_test.sh
+```
+
+See [DEPLOYMENT_GUIDE.md](../../DEPLOYMENT_GUIDE.md) for the full guide.

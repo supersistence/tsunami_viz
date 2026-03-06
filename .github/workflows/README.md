@@ -1,62 +1,23 @@
-# GitHub Actions Deployment Setup
+# GitHub Actions Deployment
 
-This workflow automatically deploys to your DigitalOcean droplet when you push to `main` or `master`.
+Automatically deploys to the Linode server when you push to `main` or `master`.
 
-## 🔧 Setup Required
+## Setup
 
-### 1. Add GitHub Secrets
+Add these GitHub Secrets (Settings -> Secrets and variables -> Actions):
 
-Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+1. **`SSH_PRIVATE_KEY`** - SSH private key for the server
+2. **`SERVER_IP`** - Linode server IP (`172.236.244.235`)
 
-Add these secrets:
+See [GITHUB_SECRETS_SETUP.md](../../GITHUB_SECRETS_SETUP.md) for details.
 
-1. **`SSH_PRIVATE_KEY`**
-   - Your SSH private key that can access the server
-   - Generate with: `ssh-keygen -t ed25519 -C "github-actions"`
-   - Copy the **private** key (usually `~/.ssh/id_ed25519`)
-   - Add the **public** key to your server: `ssh-copy-id root@143.110.144.44`
+## How It Works
 
-2. **`DROPLET_IP`**
-   - Your DigitalOcean droplet IP address
-   - Value: `143.110.144.44`
+1. Push to main/master triggers the workflow
+2. Files are copied to server via rsync
+3. Docker container is rebuilt and started
+4. Health check verifies the app is responding
 
-### 2. Verify SSH Access
+## Manual Trigger
 
-Make sure your SSH key works:
-```bash
-ssh root@143.110.144.44
-```
-
-## 🚀 How It Works
-
-1. **Push to main/master** → Workflow triggers automatically
-2. **Checkout code** → Gets your latest code
-3. **Copy files** → Uses `rsync` to copy files to server (same as `deploy.sh`)
-4. **Deploy** → Runs `docker-compose up -d --build` on server
-5. **Verify** → Checks that the app is responding
-
-## 📝 Manual Trigger
-
-You can also trigger deployments manually:
-- Go to **Actions** tab in GitHub
-- Select **Deploy to DigitalOcean** workflow
-- Click **Run workflow**
-
-## 🔍 What Gets Deployed
-
-The workflow uses the same approach as `deploy.sh`:
-- Excludes: `.git`, `venv`, `__pycache__`, `*.pyc`
-- Copies everything else to `/opt/tsunami-viz/` on server
-- Uses `docker-compose` to build and start services
-
-## 🐛 Troubleshooting
-
-**Workflow fails with SSH error:**
-- Verify your SSH key is added to GitHub secrets
-- Make sure the public key is on the server
-- Test SSH manually: `ssh root@143.110.144.44`
-
-**Deployment fails:**
-- Check the Actions logs in GitHub
-- SSH to server and check: `cd /opt/tsunami-viz && docker-compose logs`
-
+Go to **Actions** tab -> **Deploy to Linode** -> **Run workflow**

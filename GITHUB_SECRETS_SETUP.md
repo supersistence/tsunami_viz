@@ -1,102 +1,34 @@
-# 🔐 GitHub Secrets Setup Guide
+# GitHub Secrets Setup Guide
 
-Follow these steps to set up automatic deployment from GitHub to your DigitalOcean server.
+Set up automatic deployment from GitHub to the Linode server.
 
 ## Step 1: Get Your SSH Private Key
 
-Your SSH private key is already on your computer. To find it:
-
-**On Mac/Linux:**
 ```bash
-cat ~/.ssh/id_ed25519_do
-```
-
-**Or if you have a different key:**
-```bash
-# List all your SSH keys
-ls -la ~/.ssh/
-
-# View a specific key (replace with your key name)
 cat ~/.ssh/id_ed25519
-# or
-cat ~/.ssh/id_rsa
 ```
 
-**Copy the entire output** (including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines).
+Copy the entire output including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines.
 
-⚠️ **Important**: 
-- This is your private key - keep it secret! Only paste it into GitHub Secrets, never commit it to your repository.
-- When pasting into GitHub Secrets, make sure there are NO extra spaces or blank lines at the beginning or end
-- The key should start exactly with `-----BEGIN` and end exactly with `-----END`
+**Important**: This is your private key. Only paste it into GitHub Secrets, never commit it.
 
 ## Step 2: Add Secrets to GitHub
 
-1. **Go to your GitHub repository**
-   - Navigate to: `https://github.com/YOUR_USERNAME/tsunami_viz`
-   - (Replace YOUR_USERNAME with your actual GitHub username)
+1. Go to your GitHub repository
+2. Click **Settings** -> **Secrets and variables** -> **Actions**
+3. Add these secrets:
 
-2. **Open Settings**
-   - Click the **Settings** tab (top of the repository page)
+| Secret Name | Value |
+|-------------|-------|
+| `SSH_PRIVATE_KEY` | Your SSH private key from Step 1 |
+| `SERVER_IP` | `172.236.244.235` |
 
-3. **Go to Secrets**
-   - In the left sidebar, click **Secrets and variables**
-   - Then click **Actions**
+## Step 3: Test
 
-4. **Add First Secret: SSH_PRIVATE_KEY**
-   - Click **New repository secret**
-   - **Name**: `SSH_PRIVATE_KEY`
-   - **Secret**: Paste the entire private key from Step 1 (including BEGIN/END lines)
-   - Click **Add secret**
+Push to `main` and check the **Actions** tab for the "Deploy to Linode" workflow.
 
-5. **Add Second Secret: DROPLET_IP**
-   - Click **New repository secret** again
-   - **Name**: `DROPLET_IP`
-   - **Secret**: Your DigitalOcean droplet IP address
-     - You can find this in your `deploy.sh` file (look for `DROPLET_IP=`)
-     - Or check your DigitalOcean dashboard
-   - Click **Add secret**
+## Troubleshooting
 
-## Step 3: Verify Setup
-
-After adding both secrets, you should see:
-- ✅ `SSH_PRIVATE_KEY` (hidden)
-- ✅ `DROPLET_IP` (hidden)
-
-## Step 4: Test the Deployment
-
-1. **Make a small change** to your code (or just commit and push)
-   ```bash
-   git add .
-   git commit -m "Test GitHub Actions deployment"
-   git push origin main
-   ```
-
-2. **Check the Actions tab**
-   - Go to the **Actions** tab in your GitHub repository
-   - You should see "Deploy to DigitalOcean" workflow running
-   - Click on it to see the progress
-
-3. **Verify deployment**
-   - Once it completes, visit: https://tsunami.supersistence.org
-   - Your changes should be live!
-
-## 🎯 Quick Reference
-
-**Secret Names:**
-- `SSH_PRIVATE_KEY` = Your SSH private key (found with `cat ~/.ssh/id_ed25519_do`)
-- `DROPLET_IP` = Your DigitalOcean droplet IP (check `deploy.sh` or DigitalOcean dashboard)
-
-**Where to find in GitHub:**
-- Repository → Settings → Secrets and variables → Actions
-
-## 🐛 Troubleshooting
-
-**If deployment fails:**
+- Verify SSH works locally: `ssh -i ~/.ssh/id_ed25519 root@172.236.244.235`
 - Check the Actions tab for error messages
-- Make sure you copied the ENTIRE private key (including BEGIN/END lines)
-- Verify the SSH key works: `ssh root@YOUR_DROPLET_IP` (replace with your actual IP)
-
-**If you can't find Settings:**
-- Make sure you're logged into GitHub
-- Make sure you have admin access to the repository
-
+- Ensure the full key is pasted (including BEGIN/END lines, no extra whitespace)

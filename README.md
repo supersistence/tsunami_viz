@@ -67,7 +67,7 @@ python wave_propagation_dash_app.py
 # Test locally with Docker
 ./deployment/local_test.sh
 
-# Deploy to DigitalOcean
+# Deploy to Linode
 ./deploy.sh
 ```
 
@@ -135,7 +135,7 @@ curl -I https://tsunami.supersistence.org
 ## 📈 Production Deployment
 
 - **🌐 Live URL**: [tsunami.supersistence.org](https://tsunami.supersistence.org)
-- **☁️ Infrastructure**: DigitalOcean Droplet ($6/month)
+- **☁️ Infrastructure**: Linode (shared server)
 - **🔒 Security**: SSL/TLS with Let's Encrypt certificates
 - **📊 Monitoring**: Docker health checks and nginx access logs
 - **⚡ Performance**: Client-side rendering eliminates server callback bottlenecks
