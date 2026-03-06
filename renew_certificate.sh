@@ -1,8 +1,12 @@
 #!/bin/bash
 set -e
 
-DOMAIN="tsunami.supersistence.org"
-SERVER_IP="172.236.244.235"
+if [ -f .env.deploy ]; then
+    source .env.deploy
+fi
+
+DOMAIN="${DOMAIN:-tsunami.supersistence.org}"
+SERVER_IP="${SERVER_IP:?Set SERVER_IP in .env.deploy or environment}"
 
 echo "Renewing SSL certificate for $DOMAIN..."
 

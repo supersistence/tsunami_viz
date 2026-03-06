@@ -7,7 +7,7 @@ if [ -f .env.deploy ]; then
     source .env.deploy
 fi
 
-SERVER_IP="${SERVER_IP:-172.236.244.235}"
+SERVER_IP="${SERVER_IP:?Set SERVER_IP in .env.deploy or environment}"
 DOMAIN="${DOMAIN:-tsunami.supersistence.org}"
 APP_NAME="${APP_NAME:-tsunami-viz}"
 
