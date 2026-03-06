@@ -37,4 +37,4 @@ python wave_propagation_clientside_app.py
 ./deployment/local_test.sh
 ```
 
-See [DEPLOYMENT_GUIDE.md](../../DEPLOYMENT_GUIDE.md) for the full guide.
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for the full guide.

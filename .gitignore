@@ -51,4 +51,4 @@ logs/
 
 # Data backups (keep originals)
 *_backup.*
-*_old.* 
+*_old.* .claude/

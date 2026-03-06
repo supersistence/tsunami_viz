@@ -9,7 +9,7 @@ Add these GitHub Secrets (Settings -> Secrets and variables -> Actions):
 1. **`SSH_PRIVATE_KEY`** - SSH private key for the server
 2. **`SERVER_IP`** - Linode server IP (`172.236.244.235`)
 
-See [GITHUB_SECRETS_SETUP.md](../../GITHUB_SECRETS_SETUP.md) for details.
+See [GITHUB_SECRETS_SETUP.md](../../deployment/docs/GITHUB_SECRETS_SETUP.md) for details.
 
 ## How It Works
 

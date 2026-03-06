@@ -92,7 +92,7 @@ ssh deploy@172.236.244.235 'cd /opt/tsunami-viz && docker compose down'
 Certificates auto-renew via certbot. To manually renew:
 
 ```bash
-./renew_certificate.sh
+./deployment/renew_certificate.sh
 ```
 
 Or directly on the server:
