@@ -54,6 +54,6 @@ This archive represents the transition from:
 - **Initial development** → Server-side callbacks with performance issues
 - **Problem solving** → Rate limiting and loading problems identified  
 - **Architecture shift** → Client-side visualization with pre-loaded data
-- **Production ready** → Optimized, scalable deployment on DigitalOcean
+- **Production ready** → Optimized, scalable deployment on Linode
 
 The files here document this complete journey and the lessons learned along the way.
