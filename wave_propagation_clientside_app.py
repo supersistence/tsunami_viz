@@ -782,38 +782,43 @@ app.clientside_callback(
             }
         };
         
-        // Create timeseries figure with actual data traces and current time indicator
-        const timeseriesData = [];
+        // Create timeseries figure with actual data traces and current time indicator.
+        // The per-station traces are identical for every frame, so build them once and
+        // cache on window. Re-deriving them from all ~1476 frames on each animation tick
+        // (every ~65ms) was the dominant cost; only the indicator shapes change per frame.
+        if (!window.tsunamiTimeseriesTraces) {
+            const cachedTraces = [];
+            const frameKeys = Object.keys(window.tsunamiFrameData.frames);
+            for (let i = 0; i < stationOrder.length; i++) {
+                // Extract all timestamps and wave values for this station across all frames
+                const timestamps = [];
+                const waveValues = [];
+                frameKeys.forEach(frameIdx => {
+                    const frame = window.tsunamiFrameData.frames[frameIdx];
+                    if (frame.timestamp && frame.wave_values && frame.wave_values[i] !== undefined) {
+                        timestamps.push(frame.timestamp);
+                        waveValues.push(frame.wave_values[i]);
+                    }
+                });
+                cachedTraces.push({
+                    x: timestamps,
+                    y: waveValues,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: stationOrder[i],
+                    showlegend: false,
+                    line: {width: 2, color: stationColors[i]},
+                    xaxis: `x${i+1}`,
+                    yaxis: `y${i+1}`
+                });
+            }
+            window.tsunamiTimeseriesTraces = cachedTraces;
+        }
+        const timeseriesData = window.tsunamiTimeseriesTraces;
+
+        // Current time indicator line for each subplot (depends on the current frame)
         const timeseriesShapes = [];
-        
-        // Add data traces for each station (full time series)
         for (let i = 0; i < stationOrder.length; i++) {
-            // Extract all timestamps and wave values for this station across all frames
-            const timestamps = [];
-            const waveValues = [];
-            
-            // Get data from all frames for this station
-            Object.keys(window.tsunamiFrameData.frames).forEach(frameIdx => {
-                const frame = window.tsunamiFrameData.frames[frameIdx];
-                if (frame.timestamp && frame.wave_values && frame.wave_values[i] !== undefined) {
-                    timestamps.push(frame.timestamp);
-                    waveValues.push(frame.wave_values[i]);
-                }
-            });
-            
-            timeseriesData.push({
-                x: timestamps,
-                y: waveValues,
-                type: 'scatter',
-                mode: 'lines',
-                name: stationOrder[i],
-                showlegend: false,
-                line: {width: 2, color: stationColors[i]},
-                xaxis: `x${i+1}`,
-                yaxis: `y${i+1}`
-            });
-            
-            // Add current time indicator line for each subplot
             timeseriesShapes.push({
                 type: 'line',
                 xref: `x${i+1}`,
@@ -951,8 +956,9 @@ if __name__ == '__main__':
     # Get port from environment variable (for cloud deployment)
     port = int(os.environ.get('PORT', 8050))
     
-    # Get debug mode from environment variable 
-    debug_mode = os.environ.get('DEBUG', 'True').lower() == 'true'
+    # Get debug mode from environment variable (default off — the Werkzeug
+    # debugger allows remote code execution if exposed)
+    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     print(f"🚀 Starting Tsunami Visualization App on port {port}")
     print(f"🌊 Debug mode: {debug_mode}")

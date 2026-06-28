@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wave Watch: Kamchatka to Hawai'i</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+    <!-- Header -->
+    <header class="hero">
+        <h1>🌊 Wave Watch: Kamchatka to Hawai'i</h1>
+        <p class="subtitle">Interactive visualization of tsunami waves following the 2025 Kamchatka Peninsula earthquake</p>
+        <p class="quakeinfo">⚠️ Earthquake: 29 July 2025, 23:24:52 UTC | 📍 Epicenter: 52.473°N, 160.396°E | ⏰ Timeline: ~24 hrs post-quake | ⏱️ Frequency: 1-minute intervals</p>
+    </header>
+
+    <!-- Control panel -->
+    <section class="panel controls">
+        <h3>🎮 Animation Controls</h3>
+        <p class="desc">Explore tsunami wave propagation following the 2025 Kamchatka earthquake through three synchronized views: geographic map, wave front progression, and station time series record.</p>
+        <p class="hint">Hover for station details, drag the timeline for navigation, and use keyboard shortcuts (Space = play/pause, arrows = step) — all panels update simultaneously.</p>
+
+        <div class="control-row">
+            <button id="play-pause-btn" class="btn-play">▶️ Play</button>
+
+            <span class="label">Speed:</span>
+            <select id="speed-dropdown">
+                <option value="16">1 hour/sec</option>
+                <option value="33">30 min/sec</option>
+                <option value="65" selected>15 min/sec</option>
+                <option value="980">1 min/sec</option>
+            </select>
+
+            <span class="clock-wrap">
+                <span class="clock-emoji">🕐</span>
+                <span id="timeline-clock" class="clock">Loading...</span>
+                <button id="timezone-toggle" class="btn-tz">🔄 UTC</button>
+            </span>
+        </div>
+
+        <div class="slider-block">
+            <label class="label">Timeline Navigation: 🌋EQ = Earthquake, 📍M = Midway, 📍H = Hawaii</label>
+            <p class="hint">⌨️ Keyboard: Space = Play/Pause, ←/→ = Manual step, ↑/↓ = Speed</p>
+            <input type="range" id="frame-slider" min="0" max="1475" value="0" step="1">
+            <div id="slider-marks" class="slider-marks"></div>
+        </div>
+    </section>
+
+    <!-- Top row: map + wave propagation -->
+    <div class="grid-2">
+        <section class="panel">
+            <h3>🗺️ Geographic Overview</h3>
+            <p class="hint">Interactive bathymetry map showing earthquake epicenter (red) and monitoring stations (colored circles) with real-time wave amplitude data.</p>
+            <div id="bathymetry-map"></div>
+        </section>
+
+        <section class="panel">
+            <h3>📊 Wave Propagation</h3>
+            <p class="hint">Oscilloscope-style view of wave front progression across all stations: distance from epicenter on X, wave height anomaly on Y.</p>
+            <div id="wave-graph"></div>
+        </section>
+    </div>
+
+    <!-- Bottom row: time series -->
+    <section class="panel">
+        <h3>📈 Station Time Series</h3>
+        <p class="hint">Individual wave height records for each monitoring station over time, showing how tsunami waves arrive at different locations across the Pacific.</p>
+        <div id="timeseries-graph"></div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        📊 Data Source: <a href="https://tidesandcurrents.noaa.gov/web_services_info.html" target="_blank" rel="noopener">NOAA CO-OPS API</a>
+    </footer>
+
+</div>
+
+<!-- MapTiler key (replace with a domain-restricted key) -->
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

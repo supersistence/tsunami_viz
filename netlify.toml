@@ -1,0 +1,13 @@
+# Netlify config for the static Wave Watch build.
+#
+# The frame data (assets/frame_data_client.json, ~2.2 MB) lives once in the repo;
+# this build step copies it into the publish dir so it isn't duplicated in git.
+[build]
+  publish = "static"
+  command = "bash scripts/netlify-build.sh"
+
+# Long-cache the immutable data file; it only changes on a redeploy.
+[[headers]]
+  for = "/frame_data_client.json"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
