@@ -27,8 +27,8 @@ Browser loads index.html
   → renders map, wave graph, and time series entirely client-side
 ```
 
-Hosted on **Netlify** (static CDN), fronted by **Cloudflare**. Pushing to `main`
-triggers an automatic deploy.
+Because it's just static files, it can be served from any static host
+(Netlify, Vercel, Cloudflare Pages, GitHub Pages, …).
 
 ### Project structure
 
@@ -61,20 +61,22 @@ See [`static/README.md`](static/README.md) for details.
 
 ## MapTiler key
 
-The basemap uses a MapTiler key that necessarily ships to the browser, so it is
-**protected by origin** rather than kept secret:
-MapTiler → Account → Keys → Allowed HTTP Origins = `*.supersistence.org`, `localhost`.
+The basemap needs a [MapTiler](https://www.maptiler.com/) key, read from
+`static/config.js` (git-ignored). Copy `static/config.example.js` to `config.js`
+and add your key.
 
-The key is **never committed**. `static/config.js` is git-ignored and generated at
-build time from the `MAPTILER_API_KEY` environment variable (set in Netlify →
-Site settings → Environment variables). Locally, copy `config.example.js` to
-`config.js` and paste a key. Use `http://localhost` for previews — `127.0.0.1` is a
-different origin and is not whitelisted.
+Client-side map keys are visible in the browser (they ride in the tile-request
+URLs), so don't rely on secrecy — restrict the key by **HTTP origin** in your
+MapTiler account to the host(s) you serve from, plus `localhost` for local dev.
+Origins match by exact host, so preview at `http://localhost`, not `127.0.0.1`.
 
 ## Deployment
 
-Automatic via Netlify on push to `main` (build = `scripts/netlify-build.sh`,
-publish dir = `static/`). No manual steps.
+Publish the `static/` folder to any static host. The repo includes a Netlify
+config (`netlify.toml`) whose build step (`scripts/netlify-build.sh`) copies the
+data file into `static/` and writes `config.js` from a `MAPTILER_API_KEY`
+environment variable, keeping the key out of the repo. Adapt for other hosts as
+needed.
 
 ## Data
 

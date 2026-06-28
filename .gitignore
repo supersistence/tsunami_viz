@@ -61,3 +61,6 @@ static/config.js
 
 # Local Netlify folder
 .netlify
+
+# Local-only deployment notes (personal infra details — never commit)
+*.local.md
