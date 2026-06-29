@@ -6,7 +6,8 @@
 //     Environment variables.
 //   • Locally: copy this file to config.js and paste your key for previewing.
 //
-// The key ships to the browser and cannot be secret; it is protected by origin:
-// MapTiler -> Account -> Keys -> Allowed HTTP Origins = *.supersistence.org, localhost
-// (use http://localhost:PORT for local preview, NOT 127.0.0.1).
+// The key ships to the browser and cannot be secret; protect it by origin:
+// MapTiler -> Account -> Keys -> Allowed HTTP Origins = your domain(s) + localhost
+// (use http://localhost:PORT for local preview, NOT 127.0.0.1 — origins match by
+// exact host).
 window.MAPTILER_API_KEY = "YOUR_MAPTILER_KEY";
